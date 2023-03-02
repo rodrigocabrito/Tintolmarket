@@ -1,2 +1,2 @@
 # Tintolmarket
-Client-Server for buying, selling and other wine related things.
+Client-Server app for buying, selling and other wine related things.
