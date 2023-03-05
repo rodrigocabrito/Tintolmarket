@@ -16,4 +16,4 @@ git clone https://github.com/Nutlope/roomGPT
 
 ## 
 
-"Segurança e Confiabilidade" @ Faculdade de Ciencias, University of Lisbon
+Segurança e Confiabilidade @ Faculdade de Ciencias, University of Lisbon
