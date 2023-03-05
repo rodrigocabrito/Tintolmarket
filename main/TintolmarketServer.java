@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Scanner;
 
 import Tintolmarket.domain.Utilizador;
+import projeto1.dominio.Wine;
 import projeto1.exceptions.UtilizadorNotFoundException;
 import projeto1.exceptions.WineDuplicatedException;
 import projeto1.exceptions.WineNotFoundException;
@@ -32,6 +33,7 @@ public class TintolmarketServer {
     private static File f = new File("authenticaion.txt");
 
     private static ArrayList<Utilizador> listaUts = new ArrayList<>();
+    private static ArrayList<Wine> listaWines = new ArrayList<>();
 
     public static void main(String[] args) throws IOException {
         
@@ -101,7 +103,7 @@ public class TintolmarketServer {
                     System.out.println("user e passw recebidos");
 
                     //TODO utilizador
-                    ut = new Utilizador();
+                    ut = new Utilizador(clientID);
                     listaUts.add(ut);
 
                 } catch (Exception e) {
@@ -176,45 +178,131 @@ public class TintolmarketServer {
 
             //add
             if (splitCommand[0].equals("add") || splitCommand[0].equals("a")) {
-                //TODO
+                
+                for (Wine w : listaWines) {
+                    if (w.getName().equals(splitCommand[1])) {
+                        throw new WineDuplicatedException("O vinho que deseja adicionar ja existe!");
+                    }
+                }
+
+                listaWines.add(new Wine(splitCommand[1], splitCommand[2]));
+                
+                return -9999;
             }
 
             //sell
             if (splitCommand[0].equals("sell") || splitCommand[0].equals("s")) {
+                
+                boolean contains = false;
+                for (Wine wine : listaWines) {
+                    if (wine.getName().equals(splitCommand[1])){
+                        contains = true;
+                        break;
+                    }
+                }
+
+                if(!contains) {
+                    throw new WineNotFoundException("O vinho que deseja vender nao existe!");
+                }
+
                 //TODO
+
+                return -9999;
             }
 
             //view
             if (splitCommand[0].equals("view") || splitCommand[0].equals("v")) {
+                
+                boolean contains = false;
+                for (Wine wine : listaWines) {
+                    if (wine.getName().equals(splitCommand[1])){
+                        contains = true;
+                        break;
+                    }
+                }
+
+                if(!contains) {
+                    throw new WineNotFoundException("O vinho que deseja ver nao existe!");
+                }
+
                 //TODO
+
+                return -9999;
             }
 
             //buy
             if (splitCommand[0].equals("buy") || splitCommand[0].equals("b")) {
+                
+                boolean contains = false;
+                for (Wine wine : listaWines) {
+                    if (wine.getName().equals(splitCommand[1])){
+                        contains = true;
+                        break;
+                    }
+                }
+
+                if(!contains) {
+                    throw new WineNotFoundException("O vinho que deseja comprar nao existe!");
+                }
+
                 //TODO
+
+                return -9999;
             }
 
             //wallet
             if (splitCommand[0].equals("wallet") || splitCommand[0].equals("w")) {
-                //TODO
+                return ut.getBalance();
             }
 
             //classify
             if (splitCommand[0].equals("classify") || splitCommand[0].equals("c")) {
-                //TODO
+                
+                boolean contains = false;
+
+                for (Wine wine : listaWines) {
+                    if (wine.getName().equals(splitCommand[1])){
+                        wine.classify(Integer.parseInt(splitCommand[2]));
+                        contains = true;
+                        break;
+                    }
+                }
+
+                if(!contains) {
+                    throw new WineNotFoundException("O vinho que deseja classificar nao existe!");
+                }
+
+                return -9999;
             }
 
             //talk
             if (splitCommand[0].equals("talk") || splitCommand[0].equals("t")) {
+                
+                boolean contains = false;
+
+                for (Utilizador ut : listaUts) {
+                    if(ut.getUserID().equals(splitCommand[1])) {
+                        contains = true;
+                        break;
+                    }
+                }
+
+                if(!contains) {
+                    throw new UtilizadorNotFoundException("O utilizador nao existe!");
+                }
+
                 //TODO
+                return -9999;
             }
 
             //read
             if (splitCommand[0].equals("read") || splitCommand[0].equals("r")) {
+                
                 //TODO
+                return -9999;
             }
 
-            return 0;
+            return -9998;
         }
 
         /*
