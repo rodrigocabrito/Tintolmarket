@@ -12,7 +12,6 @@ import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
-import java.util.Scanner;
 
 import Tintolmarket.domain.Utilizador;
 import projeto1.dominio.Wine;
@@ -80,6 +79,9 @@ public class TintolmarketServer {
         private Socket socket = null;
         private Utilizador ut = null;
 
+        ObjectOutputStream outStream;
+        ObjectInputStream inStream;
+
         clientHandlerThread(Socket socket) {
             this.socket = socket;
         }
@@ -137,45 +139,54 @@ public class TintolmarketServer {
                 //authentication
                 String[] splitLine = line.split(":");
                 if (splitLine[1].equals(passwd)) {
+                    
+                    String command;
+                    outStream.writeBytes(menu());
 
-                    Scanner sc = new Scanner(System.in);
+                    //check if client wants more commands
+                    while(!(command = ((String) inStream.readObject())).equals("exit")) {   //TODO exit
 
-                    boolean check = true;
-                    while(check) {
+                        //boolean to evaluate if the command was success
+                        boolean check = true;
+                        while(check) {
 
-                        printMenu();
-                        String command = sc.next();
-
-                        //check if command is valid and operate as expected
-                        int i = process(command);
-                        if (i != -9998) {
-                            check = false;
-                        }
-                        else {
-                            System.out.println("Comando Inválido! Indique um dos comandos apresentados acima.");
+                            //check if command is valid and operate as expected
+                            int i = process(command);
+                            if (i != -9998) {
+                                check = false;
+                                outStream.writeBytes("Operacao realizada com sucesso!");
+                            }
+                            else {
+                                outStream.writeBytes(("Comando Inválido! Indique um dos comandos apresentados acima."));
+                            }
                         }
                     }
-
-
-
-                    //more requests
-
-                    sc.close();
-
 
                 } else {
                     System.err.println("Username ou password incorretos!");
                     System.exit(-2);
-
-                    outStream.close();
-				    inStream.close();
-                    socket.close();
                 }
-
-                //close streams and socket
 
             } catch (Exception e) {
                 e.printStackTrace();
+
+            } finally {
+
+                try {
+
+                    outStream.writeBytes("Powering off...");
+
+                    //close streams and socket
+                    if (outStream != null) {
+                        outStream.close();   
+                    }
+                    if (inStream != null) {
+                        inStream.close();
+                        socket.close();
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
             
         }
@@ -317,17 +328,22 @@ public class TintolmarketServer {
         /*
          * prints a menu with some commands
          */
-        private void printMenu() {
-            System.out.println("-------------------------------------------");
-            System.out.println(" -> add <wine> <image>");
-            System.out.println(" -> sell <wine> <value> <quantity>");
-            System.out.println(" -> view <wine>");
-            System.out.println(" -> buy <wine> <seller> <quantity>");
-            System.out.println(" -> wallet");
-            System.out.println(" -> classify <wine> <stars>");
-            System.out.println(" -> talk <user> <message>");
-            System.out.println(" -> read");
-            System.out.print(" Selecione um comando: ");
+        private String menu() {
+
+            StringBuilder sb = new StringBuilder();
+
+            sb.append("-------------------------------------------\n");
+            sb.append(" -> add <wine> <image>\n");
+            sb.append(" -> sell <wine> <value> <quantity>\n");
+            sb.append(" -> view <wine>\n");
+            sb.append(" -> buy <wine> <seller> <quantity>\n");
+            sb.append(" -> wallet\n");
+            sb.append(" -> classify <wine> <stars>\n");
+            sb.append(" -> talk <user> <message>\n");
+            sb.append(" -> read\n");
+            sb.append(" Selecione um comando: ");
+
+            return sb.toString();
         }
     }
 }
