@@ -66,8 +66,8 @@ public class TintolmarketServer {
 		        e.printStackTrace();
 		    }
 
-        //serverSocket.close();
         }
+        //serverSocket.close();
     }
 
 
