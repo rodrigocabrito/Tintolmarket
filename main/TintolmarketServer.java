@@ -41,7 +41,7 @@ public class TintolmarketServer {
             port = 12345;
         }
         
-        port = Integer.parseInt(args[1]);
+        port = Integer.parseInt(args[0]);
         
         ServerSocket serverSocket = null;
 
@@ -94,12 +94,12 @@ public class TintolmarketServer {
 			    ObjectInputStream inStream = new ObjectInputStream(socket.getInputStream());
 
                 String clientID = null;
-                String passw = null;
+                String passwd = null;
 
                 try {
 
                     clientID = (String) inStream.readObject();
-                    passw = (String) inStream.readObject();
+                    passwd = (String) inStream.readObject();
                     System.out.println("user e passw recebidos");
 
                     //TODO utilizador
@@ -128,7 +128,7 @@ public class TintolmarketServer {
                 //check if registered
                 if (!registered) {
                     
-                    bw.write(clientID + ":" + passw + "\n");
+                    bw.write(clientID + ":" + passwd + "\n");
                 
                     bw.close();
                     br.close();
@@ -136,22 +136,29 @@ public class TintolmarketServer {
 
                 //authentication
                 String[] splitLine = line.split(":");
-                if (splitLine[1].equals(passw)) {
+                if (splitLine[1].equals(passwd)) {
 
                     Scanner sc = new Scanner(System.in);
 
-                    while(true) {
+                    boolean check = true;
+                    while(check) {
 
                         printMenu();
                         String command = sc.next();
 
                         //check if command is valid and operate as expected
                         int i = process(command);
-                        if (i != -9998)
-                            break; 
-
-                        System.out.println("Comando Inválido! Indique um dos comandos apresentados acima.");
+                        if (i != -9998) {
+                            check = false;
+                        }
+                        else {
+                            System.out.println("Comando Inválido! Indique um dos comandos apresentados acima.");
+                        }
                     }
+
+
+
+                    //more requests
 
                     sc.close();
 
@@ -271,6 +278,8 @@ public class TintolmarketServer {
                 if(!contains) {
                     throw new WineNotFoundException("O vinho que deseja classificar nao existe!");
                 }
+
+                //TODO
 
                 return -9999;
             }
