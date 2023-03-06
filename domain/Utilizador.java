@@ -10,14 +10,15 @@ package Tintolmarket.domain;
 public class Utilizador {
     
     private String id = null;
-    private int wallet = 200;
+    private int balance = 0;
 
-    public Utilizador(String id) {
+    public Utilizador(String id, int balance) {
         this.id = id;
+        this.balance = balance;
     }
 
     public void updateWallet(int change) {
-        this.wallet += change;
+        this.balance += change;
     }
 
     public String getUserID() {
@@ -25,6 +26,6 @@ public class Utilizador {
     }
 
     public int getBalance() {
-        return this.wallet;
+        return this.balance;
     }
 }

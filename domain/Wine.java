@@ -14,9 +14,10 @@ public class Wine {
     private String image = null;
     private ArrayList<Integer> stars = new ArrayList<>();
 
-    public Wine(String name, String image) {
+    public Wine(String name, String image, ArrayList<Integer> stars) {
         this.name = name;
         this.image = image;
+        this.stars = stars;
     }
 
     public void classify(int stars) {
