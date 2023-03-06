@@ -2,22 +2,23 @@ package Tintolmarket.main;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Scanner;
 
 import Tintolmarket.domain.Utilizador;
-import projeto1.dominio.Wine;
-import projeto1.exceptions.UtilizadorNotFoundException;
-import projeto1.exceptions.WineDuplicatedException;
-import projeto1.exceptions.WineNotFoundException;
+import Tintolmarket.domain.Wine;
+import Tintolmarket.exceptions.UtilizadorNotFoundException;
+import Tintolmarket.exceptions.WineDuplicatedException;
+import Tintolmarket.exceptions.WineNotFoundException;
 
 /*
  * @authors:
@@ -29,13 +30,33 @@ import projeto1.exceptions.WineNotFoundException;
 public class TintolmarketServer {
     
     private static int port;
-    private static File f = new File("authenticaion.txt");
+
+    //authentication.txt
+    static BufferedReader brAuth = null;
+    static BufferedWriter bwAuth = null;
+
+    //wines.txt
+    static BufferedReader brWine = null;
+    static BufferedWriter bwWine = null;
+
+    //forSale.txt
+    static BufferedReader brSale = null;
+    static BufferedWriter bwSale = null;
+    
+    //chat.txt
+    static BufferedReader brChat = null;
+    static BufferedWriter bwChat = null;
 
     private static ArrayList<Utilizador> listaUts = new ArrayList<>();
     private static ArrayList<Wine> listaWines = new ArrayList<>();
+    private static HashMap<Utilizador,Triplet> forSale = new HashMap<>();
+    //private static ArrayList<Triplet> forSale = new ArrayList<>();
 
     public static void main(String[] args) throws IOException {
         
+        //update structures in server from .txt files
+        updateServerMemory();
+
         if (args.length == 0) {
             port = 12345;
         }
@@ -64,12 +85,165 @@ public class TintolmarketServer {
 		    }
 		    catch (IOException e) {
 		        e.printStackTrace();
-		    }
-
+		    } finally {
+                updateDataBases(); //TODO
+            }
         }
+
         //serverSocket.close();
     }
 
+    /*
+     * updates the structures in the server memory
+     */
+    private static void updateServerMemory() throws IOException {
+        
+        //update listaUts
+        
+        try {
+
+            brAuth = new BufferedReader(new FileReader("data bases/authentication.txt"));
+            
+            //do something with the file
+            fillListaUts(brAuth);
+        
+
+        } catch (FileNotFoundException e) {
+            
+            System.out.println("File not found, creating file...");
+            //file doesnt exist, create it
+            try {
+
+                FileWriter fw = new FileWriter("data bases/authentication.txt");
+                fw.close();
+
+                brAuth = new BufferedReader(new FileReader("data bases/authentication.txt"));
+
+                //do something with file
+                fillListaUts(brAuth);
+
+            } catch (IOException ex) {
+                System.out.println("Failed to create file.");
+                ex.printStackTrace();
+            }
+
+        } finally {
+            
+            if (brAuth != null) {
+                try {
+                    brAuth.close();
+                } catch (IOException e) {
+                e.printStackTrace();
+                }
+            }
+        }
+
+        //update listaWines
+        try {
+
+            brAuth = new BufferedReader(new FileReader("data bases/wines.txt"));
+            
+            //do something with the file
+            fillListaWines(brAuth);
+        
+
+        } catch (FileNotFoundException e) {
+            
+            System.out.println("File not found, creating file...");
+            //file doesnt exist, create it
+            try {
+
+                FileWriter fw = new FileWriter("data bases/wines.txt");
+                fw.close();
+
+                brAuth = new BufferedReader(new FileReader("data bases/wines.txt"));
+
+                //do something with file
+                fillListaWines(brAuth);
+
+            } catch (IOException ex) {
+                System.out.println("Failed to create file.");
+                ex.printStackTrace();
+            }
+
+        } finally {
+            
+            if (brAuth != null) {
+                try {
+                    brAuth.close();
+                } catch (IOException e) {
+                e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    private static void updateDataBases() {
+
+    }
+
+    /*
+     * for each line in authentication.txt, create an Utilizador and add to listaUts
+     */
+    private static void fillListaUts(BufferedReader br) throws NumberFormatException, IOException {
+        String line;
+        while((line = br.readLine()) != null){
+
+            String[] lineSplit = line.split(":");
+            listaUts.add(new Utilizador(lineSplit[0], Integer.parseInt(lineSplit[2])));
+        }
+        System.out.println("listaUts updated");
+    }
+
+    /*
+     * for each line in wines.txt, create a Wine and add to listaWines
+     */
+    private static void fillListaWines(BufferedReader br) throws NumberFormatException, IOException{
+        String line;
+        while((line = br.readLine()) != null){
+
+            String[] lineSplit = line.split(";");
+            ArrayList<Integer> stars = new ArrayList<>();
+
+            for (int i = 2; i < lineSplit.length; i++) {
+                stars.add(Integer.parseInt(lineSplit[i]));
+            }
+
+            listaWines.add(new Wine(lineSplit[0], lineSplit[1], stars));
+        }
+        System.out.println("listaWines updated");
+    }
+
+    class Triplet {
+        private Wine wine = null; 
+        private int value = 0; 
+        private int quantity = 0;
+
+        public Triplet(Wine wine, int value, int quantity) { 
+            this.wine = wine; 
+            this.value = value; 
+            this.quantity = quantity;
+        }
+
+        public Wine getWine() {
+            return this.wine;
+        }
+
+        public int getValue() {
+            return this.value;
+        }
+
+        public int getQuantity() {
+            return this.quantity;
+        }
+
+        /*
+         * 
+         */
+        public void update(int delta) {
+            this.quantity += delta;
+        }
+    }
 
     /*
      * classe para criar threads para vários clientes comunicarem com o servidor
@@ -105,22 +279,23 @@ public class TintolmarketServer {
                     System.out.println("user e passw recebidos");
 
                     //TODO utilizador
-                    ut = new Utilizador(clientID);
+                    ut = new Utilizador(clientID, 200);
                     listaUts.add(ut);
 
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
 
-                BufferedWriter bw = new BufferedWriter(new PrintWriter(f));
-                BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(f)));
+                // writer/reader -> authentication.txt
+                bwAuth = new BufferedWriter(new FileWriter("data bases/authentication.txt"));
+                Scanner sc = new Scanner("data bases/authentication");
 
                 boolean registered = false;
-                String line = null;
+                String line = " : ";
 
-                while (true) {
+                while (sc.hasNextLine()) {
 
-                    line = br.readLine();
+                    line = sc.next();
                     if (line.contains(clientID)) {
                         registered = true;
                         break;
@@ -130,15 +305,15 @@ public class TintolmarketServer {
                 //check if registered
                 if (!registered) {
                     
-                    bw.write(clientID + ":" + passwd + "\n");
+                    bwAuth.write(clientID + ":" + passwd + "\n");
                 
-                    bw.close();
-                    br.close();
+                    bwAuth.close();
+                    sc.close();
                 }
 
                 //authentication
                 String[] splitLine = line.split(":");
-                if (splitLine[1].equals(passwd)) {
+                if (splitLine[1].equals(passwd) || !registered) {
                     
                     String command;
                     outStream.writeBytes(menu());
@@ -203,7 +378,7 @@ public class TintolmarketServer {
                     }
                 }
 
-                listaWines.add(new Wine(splitCommand[1], splitCommand[2]));
+                listaWines.add(new Wine(splitCommand[1], splitCommand[2], new ArrayList<Integer>()));
                 
                 return -9999;
             }

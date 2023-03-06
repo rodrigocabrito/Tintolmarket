@@ -12,7 +12,7 @@ import java.util.Scanner;
  *      João Fraga 44837
  */
 
-public class TintolmarketClient {
+public class Tintolmarket {
     
     private static int port = 12345;
 
