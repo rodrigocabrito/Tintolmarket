@@ -11,7 +11,7 @@ public class Utilizador {
     
     private String id = null;
     private int balance = 0;
-
+    
     public Utilizador(String id, int balance) {
         this.id = id;
         this.balance = balance;

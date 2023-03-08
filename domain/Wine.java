@@ -39,7 +39,15 @@ public class Wine {
         return sum/(stars.size());
     }
 
+    public ArrayList<Integer> getStars() {
+        return this.stars;
+    }
+
     public String getName() {
         return this.name;
+    }
+
+    public String getImage() {
+        return this.image;
     }
 }
