@@ -557,16 +557,41 @@ public class TintolmarketServer {
                     throw new UtilizadorNotFoundException("O utilizador nao existe!");
                 }
 
-                //TODO
+                try {
+                    bwChat = new BufferedWriter(new FileWriter("data bases/chat.txt"));
 
-                
+                    bwChat.write(ut.getUserID() + ";" + splitCommand[1] + ";" + splitCommand[2] + "\n");
+
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+
                 return -9999;
             }
 
             //read
             if (splitCommand[0].equals("read") || splitCommand[0].equals("r")) {
                 
-                //TODO
+                try {
+                    brChat = new BufferedReader(new FileReader("data bases/chat.txt"));
+                    String line;
+
+                    while ((line = brChat.readLine()) != null) {
+
+                        String[] splitLine = line.split(";");
+                        if (splitLine[1].equals(ut.getUserID())) {
+
+                            System.out.println("mensagem de" + splitLine[0] + " : " + splitLine[2]);
+                            bwAuth.write("");   //remove msg from server
+                        } else {
+                            bwAuth.write(line + "\n");
+                        }
+                    }
+
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+
                 return -9999;
             }
 
