@@ -26,6 +26,7 @@ public class Tintolmarket {
             ObjectInputStream inStream = new ObjectInputStream(clientSocket.getInputStream());
             ObjectOutputStream outStream = new ObjectOutputStream(clientSocket.getOutputStream());
 
+            //authentication
             outStream.writeObject(args[0]);
             outStream.writeObject(args[1]);
             
@@ -42,7 +43,7 @@ public class Tintolmarket {
                 String command = sc.next();
                 outStream.writeObject(command);
 
-                //print answer
+                //print answer(s)
                 System.out.println((String) inStream.readObject());
 
                 //print powering off
