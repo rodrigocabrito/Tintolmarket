@@ -1,1 +1,1 @@
-wine;price;quantity;seller
+seller;wine;price;quantity

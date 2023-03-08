@@ -42,7 +42,7 @@ public class TintolmarketServer {
     //forSale.txt
     static BufferedReader brSale = null;
     static BufferedWriter bwSale = null;
-    
+
     //chat.txt
     static BufferedReader brChat = null;
     static BufferedWriter bwChat = null;
@@ -77,16 +77,17 @@ public class TintolmarketServer {
         while(true) {
 
             Socket clientSocket = null;
+            clientHandlerThread clientThread = null;
 
 			try {
 				clientSocket = serverSocket.accept();
-				clientHandlerThread clientThread = new clientHandlerThread(clientSocket);
+				clientThread = new clientHandlerThread(clientSocket);
                 clientThread.start();
 		    }
 		    catch (IOException e) {
 		        e.printStackTrace();
 		    } finally {
-                updateDataBases(); //TODO
+                updateDataBases(clientThread); //TODO
             }
         }
 
@@ -178,8 +179,74 @@ public class TintolmarketServer {
         }
     }
 
-    private static void updateDataBases() {
+    private static void updateDataBases(clientHandlerThread clientThread) {
+        
+        //update authentication.txt (balance of current Utilizador)
+        try {
 
+            bwAuth = new BufferedWriter(new FileWriter("data bases/authentication.txt"));
+            brAuth = new BufferedReader(new FileReader("data bases/authentication.txt"));
+
+            Utilizador ut = listaUts.get(listaUts.indexOf(clientThread.getUtilizador()));
+            int saldo = ut.getBalance();
+            String line;
+
+            while ((line = brAuth.readLine()) != null) {
+
+                String[] splitLine = line.split(":");
+                if (line.contains(ut.getUserID())) {
+                    bwAuth.write(splitLine[0] + ":" + splitLine[1] + saldo + "\n");
+                } else {
+                    bwAuth.write(line + "\n");
+                }
+            }
+
+            bwAuth.close();
+            brAuth.close();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        
+        //update Wines.txt
+        try {
+            brWine = new BufferedReader(new FileReader("data bases/wines.txt"));
+            bwWine = new BufferedWriter(new FileWriter("data bases/wines.txt"));
+
+            for (Wine wine : listaWines) {
+
+                StringBuilder sb = new StringBuilder();
+                for (Integer j : wine.getStars()) {
+                    sb.append(j);
+                    sb.append(";");
+                }                        
+                String stars = sb.toString();
+
+                bwWine.write(wine.getName() + ";" + wine.getImage() + ";" + stars + "\n");
+            }
+            brWine.close();
+            bwWine.close();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        //update forSale.txt
+        try {
+            bwSale = new BufferedWriter(new FileWriter("data bases/forSale.txt"));
+
+            for (Utilizador ut : forSale.keySet()) {
+
+                Triplet sale = forSale.get(ut);
+
+                bwSale.write(ut.getUserID() + ";" + sale.wine + ";" + sale.value + ";" + sale.quantity + "\n");
+            }
+
+            bwSale.close();
+
+        } catch (Exception e) {
+            e.printStackTrace();;
+        }
     }
 
     /*
@@ -366,6 +433,10 @@ public class TintolmarketServer {
             
         }
 
+
+        /*
+         * App functionalities
+         */
         private int process(String command) throws WineDuplicatedException, WineNotFoundException, UtilizadorNotFoundException {
             String[] splitCommand = command.split(" ");
 
@@ -487,6 +558,8 @@ public class TintolmarketServer {
                 }
 
                 //TODO
+
+                
                 return -9999;
             }
 
@@ -498,6 +571,11 @@ public class TintolmarketServer {
             }
 
             return -9998;
+        }
+
+
+        private Utilizador getUtilizador() {
+            return this.ut;
         }
 
         /*
@@ -516,6 +594,7 @@ public class TintolmarketServer {
             sb.append(" -> classify <wine> <stars>\n");
             sb.append(" -> talk <user> <message>\n");
             sb.append(" -> read\n");
+            sb.append(" -> exit\n");
             sb.append(" Selecione um comando: ");
 
             return sb.toString();
