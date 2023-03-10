@@ -20,7 +20,7 @@ import Tintolmarket.exceptions.NotEnoughBudgetException;
 import Tintolmarket.exceptions.UtilizadorNotFoundException;
 import Tintolmarket.exceptions.WineDuplicatedException;
 import Tintolmarket.exceptions.WineNotFoundException;
-import projeto1.exceptions.NotEnoughWineQuantityException;
+import Tintolmarket.exceptions.NotEnoughWineQuantityException;
 
 /*
  * @authors:
@@ -28,14 +28,22 @@ import projeto1.exceptions.NotEnoughWineQuantityException;
  *      João Costa 54482
  *      João Fraga 44837
  */
+//TODO talk with buffer, remove exceptions e adicionar if elses
+//TODO client(read objects, ciclos)
 
 public class TintolmarketServer {
     
     private static int port;
 
     //authentication.txt
-    static BufferedReader brAuth = null;
+    static BufferedReader brAuth = null; //may not be used
     static BufferedWriter bwAuth = null;
+
+
+
+    //balance.txt
+    static BufferedReader brBal = null;
+    static BufferedWriter bwBal = null;
 
     //wines.txt
     static BufferedReader brWine = null;
@@ -77,7 +85,7 @@ public class TintolmarketServer {
 
         while(true) {
 
-            Socket clientSocket = null;
+            Socket clientSocket;
             clientHandlerThread clientThread = null;
 
 			try {
@@ -104,25 +112,22 @@ public class TintolmarketServer {
         
         try {
 
-            brAuth = new BufferedReader(new FileReader("data_bas/authentication.txt"));
-            
-            //do something with the file
-            fillListaUts(brAuth);
-        
+            brBal = new BufferedReader(new FileReader("data_bas/balance.txt"));
+            fillListaUts(brBal);
+            brBal.close();
 
         } catch (FileNotFoundException e) {
             
             System.out.println("File not found, creating file...");
-            //file doesnt exist, create it
+            //file doesn't exist, create it
             try {
 
-                FileWriter fw = new FileWriter("data_base/authentication.txt");
+                FileWriter fw = new FileWriter("data_base/balance.txt");
                 fw.close();
 
-                brAuth = new BufferedReader(new FileReader("data_base/authentication.txt"));
-
-                //do something with file
-                fillListaUts(brAuth);
+                brBal = new BufferedReader(new FileReader("data_base/balance.txt"));
+                fillListaUts(brBal);
+                brBal.close();
 
             } catch (IOException ex) {
                 System.out.println("Failed to create file.");
@@ -131,9 +136,9 @@ public class TintolmarketServer {
 
         } finally {
             
-            if (brAuth != null) {
+            if (brBal != null) {
                 try {
-                    brAuth.close();
+                    brBal.close();
                 } catch (IOException e) {
                 e.printStackTrace();
                 }
@@ -143,25 +148,22 @@ public class TintolmarketServer {
         //update listaWines
         try {
 
-            brAuth = new BufferedReader(new FileReader("data_bas/wines.txt"));
-            
-            //do something with the file
-            fillListaWines(brAuth);
-        
+            brWine = new BufferedReader(new FileReader("data_bas/wines.txt"));
+            fillListaWines(brWine);
+            brWine.close();
 
         } catch (FileNotFoundException e) {
             
             System.out.println("File not found, creating file...");
-            //file doesnt exist, create it
+            //file doesn't exist, create it
             try {
 
                 FileWriter fw = new FileWriter("data_base/wines.txt");
                 fw.close();
 
-                brAuth = new BufferedReader(new FileReader("data_base/wines.txt"));
-
-                //do something with file
-                fillListaWines(brAuth);
+                brWine = new BufferedReader(new FileReader("data_base/wines.txt"));
+                fillListaWines(brWine);
+                brWine.close();
 
             } catch (IOException ex) {
                 System.out.println("Failed to create file.");
@@ -170,11 +172,45 @@ public class TintolmarketServer {
 
         } finally {
             
-            if (brAuth != null) {
+            if (brWine != null) {
                 try {
-                    brAuth.close();
+                    brWine.close();
                 } catch (IOException e) {
                 e.printStackTrace();
+                }
+            }
+        }
+        try {
+
+            brSale = new BufferedReader(new FileReader("data_bas/forSale.txt"));
+            fillListaForSale(brSale);
+            brSale.close();
+
+        } catch (FileNotFoundException e) {
+
+            System.out.println("File not found, creating file...");
+            //file doesn't exist, create it
+            try {
+
+                FileWriter fw = new FileWriter("data_base/forSale.txt");
+                fw.close();
+
+                brSale = new BufferedReader(new FileReader("data_base/forSale.txt"));
+                fillListaForSale(brSale);
+                brSale.close();
+
+            } catch (IOException ex) {
+                System.out.println("Failed to create file.");
+                ex.printStackTrace();
+            }
+
+        } finally {
+
+            if (brSale != null) {
+                try {
+                    brSale.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
             }
         }
@@ -182,28 +218,27 @@ public class TintolmarketServer {
 
     private static void updateDataBases(clientHandlerThread clientThread) {
         
-        //update authentication.txt (balance of current Utilizador)
+        //update balance.txt (balance of all Utilizador)
         try {
 
-            bwAuth = new BufferedWriter(new FileWriter("data_bas/authentication.txt"));
-            brAuth = new BufferedReader(new FileReader("data_bas/authentication.txt"));
+            bwBal = new BufferedWriter(new FileWriter("data_bas/balance.txt"));
+            brBal = new BufferedReader(new FileReader("data_bas/balance.txt"));
 
             Utilizador ut = listaUts.get(listaUts.indexOf(clientThread.getUtilizador()));
-            int saldo = ut.getBalance();
             String line;
 
-            while ((line = brAuth.readLine()) != null) {
+            while ((line = brBal.readLine()) != null) {
 
                 String[] splitLine = line.split(":");
                 if (line.contains(ut.getUserID())) {
-                    bwAuth.write(splitLine[0] + ":" + splitLine[1] + saldo + "\n");
+                    bwBal.write(splitLine[0] + ";" + ut.getBalance() + "\n"); //utilizador;saldo
                 } else {
-                    bwAuth.write(line + "\n");
+                    bwBal.write(line + "\n");
                 }
             }
 
-            bwAuth.close();
-            brAuth.close();
+            bwBal.close();
+            brBal.close();
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -222,7 +257,7 @@ public class TintolmarketServer {
                     sb.append(";");
                 }                        
                 String stars = sb.toString();
-
+                //nome;imagem;star1;star2;star3...
                 bwWine.write(wine.getName() + ";" + wine.getImage() + ";" + stars + "\n");
             }
             brWine.close();
@@ -239,26 +274,26 @@ public class TintolmarketServer {
             for (Utilizador ut : forSale.keySet()) {
 
                 Triplet sale = forSale.get(ut);
-
+                //seller;wine;price;quantity
                 bwSale.write(ut.getUserID() + ";" + sale.wine + ";" + sale.value + ";" + sale.quantity + "\n");
             }
 
             bwSale.close();
 
         } catch (Exception e) {
-            e.printStackTrace();;
+            e.printStackTrace();
         }
     }
 
     /*
-     * for each line in authentication.txt, create an Utilizador and add to listaUts
+     * for each line in balance.txt, create an Utilizador and add to listaUts
      */
     private static void fillListaUts(BufferedReader br) throws NumberFormatException, IOException {
         String line;
         while((line = br.readLine()) != null){
 
-            String[] lineSplit = line.split(":");
-            listaUts.add(new Utilizador(lineSplit[0], Integer.parseInt(lineSplit[2])));
+            String[] lineSplit = line.split(";");
+            listaUts.add(new Utilizador(lineSplit[0], Integer.parseInt(lineSplit[1])));
         }
         System.out.println("listaUts updated");
     }
@@ -282,10 +317,39 @@ public class TintolmarketServer {
         System.out.println("listaWines updated");
     }
 
+    /*
+     * for each line in forSale.txt, create a Sale and add to hashmap forSale(Utilizador,Triplet)
+     */
+    private static void fillListaForSale(BufferedReader br) throws NumberFormatException, IOException{
+        String line;
+        while((line=br.readLine()) != null){
+            String[]splitLine = line.split(";");
+
+            Utilizador utSale = null;
+            for (Utilizador u:listaUts) {
+                if(u.getUserID().equals(splitLine[0])){
+                    utSale = u;
+                }
+            }
+
+            Wine wSale = null;
+            for (Wine w:listaWines) {
+                if(w.getName().equals(splitLine[1])){
+                    wSale = w;
+                }
+            }
+
+            forSale.put(utSale,new Triplet(wSale,Integer.parseInt(splitLine[2]),Integer.parseInt(splitLine[2])));
+        }
+    }
+
+    /*
+     * Classe que representa todos os argumentos de uma venda para alem do vendedor (Wine,price,quantity)
+     */
     static class Triplet {
-        private Wine wine = null; 
-        private int value = 0; 
-        private int quantity = 0;
+        private final Wine wine;
+        private int value;
+        private int quantity;
 
         public Triplet(Wine wine, int value, int quantity) { 
             this.wine = wine; 
@@ -319,7 +383,7 @@ public class TintolmarketServer {
      */
     static class clientHandlerThread extends Thread {
 
-        private Socket socket = null;
+        private Socket socket;
         private Utilizador ut = null;
 
         ObjectOutputStream outStream;
@@ -329,7 +393,7 @@ public class TintolmarketServer {
             this.socket = socket;
         }
 
-        
+
         public void run() {
 
             //streams
@@ -387,7 +451,7 @@ public class TintolmarketServer {
                     outStream.writeBytes(menu());
 
                     //check if client wants more commands
-                    while(!(command = ((String) inStream.readObject())).equals("exit")) {   //TODO exit
+                    while(!(command = ((String) inStream.readObject())).equals("exit")) {
 
                         //boolean to evaluate if the command was success
                         boolean check = true;
@@ -447,12 +511,10 @@ public class TintolmarketServer {
                     if (w.getName().equals(splitCommand[1])) {
                         outStream.writeBytes("O vinho que deseja adicionar ja existe! \n");
                         throw new WineDuplicatedException("O vinho que deseja adicionar ja existe!");
-                        
                     }
                 }
 
-                listaWines.add(new Wine(splitCommand[1], splitCommand[2], new ArrayList<Integer>()));
-                
+                listaWines.add(new Wine(splitCommand[1], splitCommand[2], new ArrayList<>()));
                 return -9999;
             }
 
@@ -460,20 +522,29 @@ public class TintolmarketServer {
             if (splitCommand[0].equals("sell") || splitCommand[0].equals("s")) {
                 
                 boolean contains = false;
-                for (Wine wine : listaWines) {
+                Wine wine = null;
+                for (Wine w : listaWines) {
                     if (wine.getName().equals(splitCommand[1]) && !contains){
+                        wine = w;
                         contains = true;
                     }
                 }
 
                 if(!contains) {
+                    outStream.writeBytes("O vinho que deseja vender nao existe!");
                     throw new WineNotFoundException("O vinho que deseja vender nao existe!");
                 }
-                Wine wineRequested = new Wine(splitCommand[1], "", new ArrayList<>());
-                Wine wine = listaWines.get(listaWines.indexOf(wineRequested));
-
-                forSale.put(ut, new Triplet(wine, Integer.parseInt(splitCommand[2]), Integer.parseInt(splitCommand[3])));
-
+                boolean toUpdate = false;
+                for (Utilizador u: forSale.keySet()) {
+                    Triplet t = forSale.get(u);
+                    if(t.getWine().getName().equals(splitCommand[1])){//caso o vinho ja esteja a venda(mesmo ut)
+                        t.updateValue(Integer.parseInt(splitCommand[2]));//muda o preço
+                        toUpdate = true;
+                    }
+                }
+                if(!toUpdate) {
+                    forSale.put(ut, new Triplet(wine, Integer.parseInt(splitCommand[2]), Integer.parseInt(splitCommand[3])));
+                }
                 outStream.writeBytes("Vinho colocado a venda! \n");
 
                 return -9999;
@@ -483,9 +554,11 @@ public class TintolmarketServer {
             if (splitCommand[0].equals("view") || splitCommand[0].equals("v")) {
                 
                 boolean contains = false;
+                Wine w = null;
                 for (Wine wine : listaWines) {
                     if (wine.getName().equals(splitCommand[1]) && !contains){
                         contains = true;
+                        w = wine;
                     }
                 }
 
@@ -494,29 +567,24 @@ public class TintolmarketServer {
                     throw new WineNotFoundException("O vinho que deseja ver nao existe!");
                 }
 
-                Wine wine = null;
-                for (Wine w : listaWines) {
-                    if (w.getName().equals(splitCommand[1])) {
-                        wine = listaWines.get(listaWines.indexOf(""));
-                    }
-                }
 
-                outStream.writeBytes("Nome: " + wine.getName() + "\n" +
-                                    "Imagem: " + wine.getImage() + "\n" +
-                                    "Classificacao media: " + wine.getAvgRate() + "\n");
+                StringBuilder sb = new StringBuilder();
+                sb.append("Nome: " + w.getName() + "\n");
+                sb.append("Imagem: " + w.getImage() + "\n");
+                sb.append("Classificacao media: " + w.getAvgRate() + "\n");
 
                 for (Utilizador ut : forSale.keySet()) {
 
                     Triplet sale = forSale.get(ut);
-                    if(wine.getName().equals(sale.getWine().getName()) && sale.getQuantity() > 0) {
+                    if(w.getName().equals(sale.getWine().getName()) && sale.getQuantity() > 0) {
 
-                        outStream.writeBytes("-------------------------------------- \n");
-                        outStream.writeBytes("Vendedor: " + ut.getUserID() + "\n" +
-                                            "Preco: " + sale.getValue() + "\n" +
-                                            "Quantidade: " + sale.getQuantity() + "\n");
+                        sb.append("-------------------------------------- \n");
+                        sb.append("Vendedor: " + ut.getUserID() + "\n");
+                        sb.append("Preco: " + sale.getValue() + "\n");
+                        sb.append("Quantidade: " + sale.getQuantity() + "\n");
                     }
                 }
-                
+                outStream.writeBytes(sb.toString());
                 return -9999;
             }
 
@@ -534,11 +602,11 @@ public class TintolmarketServer {
                     outStream.writeBytes("O vinho que deseja comprar nao existe! \n");
                     throw new WineNotFoundException("O vinho que deseja comprar nao existe!");
                 }
-
+                boolean sold = false;//boolean to check if sale was already made
                 for (Utilizador utSeller : forSale.keySet()) {
-                    if(utSeller.getUserID().equals(splitCommand[2])) {
+                    if(utSeller.getUserID().equals(splitCommand[2]) && !sold) {// find seller
 
-                        Triplet sale = forSale.get(utSeller);
+                        Triplet sale = forSale.get(utSeller);//venda encontrada a partir do seller
                         if(sale.getQuantity() < Integer.parseInt(splitCommand[3])) {
                             outStream.writeBytes("Nao existe quantidade suficiente deste vinho para venda!");
                             throw new NotEnoughWineQuantityException("Nao existe quantidade suficiente deste vinho para venda!");
@@ -550,10 +618,12 @@ public class TintolmarketServer {
                         }
 
                         sale.updateQuantity(-(Integer.parseInt(splitCommand[3])));
-                        ut.updateWallet(-(sale.getValue()* (Integer.parseInt(splitCommand[3]))));
+                        ut.updateWallet(-(sale.getValue() * (Integer.parseInt(splitCommand[3]))));
+                        sold = true;
+
                     }
                 }
-
+                outStream.writeBytes("Compra realizada com sucesso!");//yey
                 return -9999;
             }
 
@@ -589,8 +659,8 @@ public class TintolmarketServer {
                 
                 boolean contains = false;
 
-                for (Utilizador ut : listaUts) {
-                    if(ut.getUserID().equals(splitCommand[1]) && !contains) {
+                for (Utilizador u : listaUts) {
+                    if(u.getUserID().equals(splitCommand[1]) && !contains) {
                         contains = true;
                     }
                 }
@@ -602,9 +672,9 @@ public class TintolmarketServer {
 
                 try {
                     bwChat = new BufferedWriter(new FileWriter("data_bases/chat.txt"));
-
                     bwChat.write(ut.getUserID() + ";" + splitCommand[1] + ";" + splitCommand[2] + "\n");
 
+                    bwChat.close();
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -627,12 +697,13 @@ public class TintolmarketServer {
                         if (splitLine[1].equals(ut.getUserID())) {
 
                             outStream.writeBytes("mensagem de" + splitLine[0] + " : " + splitLine[2]);
-                            bwAuth.write("");   //remove msg from server
+                            bwChat.write("");   //remove msg from server
                         } else {
-                            bwAuth.write(line + "\n");
+                            bwChat.write(line + "\n");
                         }
                     }
-
+                    brChat.close();
+                    bwChat.close();
                 } catch (Exception e) {
                     e.printStackTrace();
                 }

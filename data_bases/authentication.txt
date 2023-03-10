@@ -1,1 +1,1 @@
-clientID:passwd:balance
+clientID:passwd
