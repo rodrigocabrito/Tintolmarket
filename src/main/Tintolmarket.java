@@ -1,4 +1,4 @@
-package Tintolmarket.main;
+package main;
 
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -29,9 +29,6 @@ public class Tintolmarket {
             //authentication
             outStream.writeObject(args[0]);
             outStream.writeObject(args[1]);
-            
-            //answer (credentials received or not)
-            System.out.println((String) inStream.readObject() + "\n");
 
             while(true) {
 
@@ -48,7 +45,6 @@ public class Tintolmarket {
 
                 //print powering off
                 if (command.equals("exit")) {
-                    
                     System.out.println((String) inStream.readObject());
                     sc.close();
                     clientSocket.close();

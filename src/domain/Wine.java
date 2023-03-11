@@ -1,4 +1,4 @@
-package Tintolmarket.domain;
+package domain;
 
 /*
  * @authors:

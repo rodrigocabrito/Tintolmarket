@@ -1,4 +1,4 @@
-package Tintolmarket.main;
+package Tintolmarket.src.main;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -14,13 +14,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Scanner;
 
-import Tintolmarket.domain.Utilizador;
-import Tintolmarket.domain.Wine;
-import Tintolmarket.exceptions.NotEnoughBudgetException;
-import Tintolmarket.exceptions.UtilizadorNotFoundException;
-import Tintolmarket.exceptions.WineDuplicatedException;
-import Tintolmarket.exceptions.WineNotFoundException;
-import Tintolmarket.exceptions.NotEnoughWineQuantityException;
+import Utilizador;
+import Wine;
 
 /*
  * @authors:
@@ -28,8 +23,6 @@ import Tintolmarket.exceptions.NotEnoughWineQuantityException;
  *      João Costa 54482
  *      João Fraga 44837
  */
-//TODO talk with buffer, remove exceptions e adicionar if elses
-//TODO client(read objects, ciclos)
 
 public class TintolmarketServer {
     
