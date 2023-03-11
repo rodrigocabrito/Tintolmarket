@@ -39,8 +39,6 @@ public class TintolmarketServer {
     static BufferedReader brAuth = null; //may not be used
     static BufferedWriter bwAuth = null;
 
-
-
     //balance.txt
     static BufferedReader brBal = null;
     static BufferedWriter bwBal = null;
@@ -96,7 +94,7 @@ public class TintolmarketServer {
 		    catch (IOException e) {
 		        e.printStackTrace();
 		    } finally {
-                updateDataBases(clientThread); //TODO
+                updateDataBases(clientThread);
             }
         }
 
@@ -341,6 +339,7 @@ public class TintolmarketServer {
 
             forSale.put(utSale,new Triplet(wSale,Integer.parseInt(splitLine[2]),Integer.parseInt(splitLine[2])));
         }
+        System.out.println("listaForSale updated");
     }
 
     /*
@@ -409,9 +408,7 @@ public class TintolmarketServer {
 
                     clientID = (String) inStream.readObject();
                     passwd = (String) inStream.readObject();
-                    System.out.println("user e passw recebidos");
 
-                    //TODO utilizador
                     ut = new Utilizador(clientID, 200);
                     listaUts.add(ut);
 
@@ -448,24 +445,19 @@ public class TintolmarketServer {
                 if (splitLine[1].equals(passwd) || !registered) {
                     
                     String command;
-                    outStream.writeBytes(menu());
+                    boolean exit = false;
 
-                    //check if client wants more commands
-                    while(!(command = ((String) inStream.readObject())).equals("exit")) {
+                    while(!exit) {
 
-                        //boolean to evaluate if the command was success
-                        boolean check = true;
-                        while(check) {
+                        outStream.writeBytes(menu());
+                        command = (String) inStream.readObject();
 
+                        //check if client wants more commands and if command as valid <check>
+                        if(command.equals("exit")) {
+                            exit = true;
+                        } else {
                             //check if command is valid and operate as expected
-                            int i = process(command);
-                            if (i != -9998) {
-                                check = false;
-                                outStream.writeBytes("Operacao realizada com sucesso!"); //TODO send answers to client
-                            }
-                            else {
-                                outStream.writeBytes(("Comando Inválido! Indique um dos comandos apresentados acima."));
-                            }
+                            process(command);
                         }
                     }
 
@@ -481,7 +473,7 @@ public class TintolmarketServer {
 
                 try {
 
-                    outStream.writeBytes("Powering off...");
+                    outStream.writeBytes("Powering off... \n");
 
                     //close streams and socket
                     if (outStream != null) {
@@ -501,8 +493,9 @@ public class TintolmarketServer {
         /*
          * App functionalities
          */
-        private int process(String command) throws WineDuplicatedException, WineNotFoundException, UtilizadorNotFoundException, IOException, NotEnoughWineQuantityException, NotEnoughBudgetException {
+        private void process(String command) throws IOException{
             String[] splitCommand = command.split(" ");
+            boolean sucess = false;
 
             //add
             if (splitCommand[0].equals("add") || splitCommand[0].equals("a")) {
@@ -510,12 +503,12 @@ public class TintolmarketServer {
                 for (Wine w : listaWines) {
                     if (w.getName().equals(splitCommand[1])) {
                         outStream.writeBytes("O vinho que deseja adicionar ja existe! \n");
-                        throw new WineDuplicatedException("O vinho que deseja adicionar ja existe!");
+                    } else {
+                        listaWines.add(new Wine(splitCommand[1], splitCommand[2], new ArrayList<>()));
+                        sucess = true;
+                        outStream.writeBytes("Vinho adicionado com sucesso! \n");
                     }
                 }
-
-                listaWines.add(new Wine(splitCommand[1], splitCommand[2], new ArrayList<>()));
-                return -9999;
             }
 
             //sell
@@ -531,23 +524,24 @@ public class TintolmarketServer {
                 }
 
                 if(!contains) {
-                    outStream.writeBytes("O vinho que deseja vender nao existe!");
-                    throw new WineNotFoundException("O vinho que deseja vender nao existe!");
-                }
-                boolean toUpdate = false;
-                for (Utilizador u: forSale.keySet()) {
-                    Triplet t = forSale.get(u);
-                    if(t.getWine().getName().equals(splitCommand[1])){//caso o vinho ja esteja a venda(mesmo ut)
-                        t.updateValue(Integer.parseInt(splitCommand[2]));//muda o preço
-                        toUpdate = true;
-                    }
-                }
-                if(!toUpdate) {
-                    forSale.put(ut, new Triplet(wine, Integer.parseInt(splitCommand[2]), Integer.parseInt(splitCommand[3])));
-                }
-                outStream.writeBytes("Vinho colocado a venda! \n");
+                    outStream.writeBytes("O vinho que deseja vender nao existe! \n");
+                } else {
 
-                return -9999;
+                    boolean toUpdate = false;
+                    for (Utilizador u: forSale.keySet()) {
+
+                        Triplet t = forSale.get(u);
+                        if(t.getWine().getName().equals(splitCommand[1])){//caso o vinho ja esteja a venda(mesmo ut)
+                            t.updateValue(Integer.parseInt(splitCommand[2]));//muda o preço
+                            toUpdate = true;
+                        }
+                    }
+                    if(!toUpdate) {
+                        forSale.put(ut, new Triplet(wine, Integer.parseInt(splitCommand[2]), Integer.parseInt(splitCommand[3])));
+                    }
+                    sucess = true;
+                    outStream.writeBytes("Vinho colocado a venda! \n");
+                }
             }
 
             //view
@@ -564,28 +558,27 @@ public class TintolmarketServer {
 
                 if(!contains) {
                     outStream.writeBytes("O vinho que deseja ver nao existe! \n");
-                    throw new WineNotFoundException("O vinho que deseja ver nao existe!");
-                }
+                } else {
 
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("Nome: " + w.getName() + "\n");
+                    sb.append("Imagem: " + w.getImage() + "\n");
+                    sb.append("Classificacao media: " + w.getAvgRate() + "\n");
 
-                StringBuilder sb = new StringBuilder();
-                sb.append("Nome: " + w.getName() + "\n");
-                sb.append("Imagem: " + w.getImage() + "\n");
-                sb.append("Classificacao media: " + w.getAvgRate() + "\n");
+                    for (Utilizador ut : forSale.keySet()) {
 
-                for (Utilizador ut : forSale.keySet()) {
+                        Triplet sale = forSale.get(ut);
+                        if(w.getName().equals(sale.getWine().getName()) && sale.getQuantity() > 0) {
 
-                    Triplet sale = forSale.get(ut);
-                    if(w.getName().equals(sale.getWine().getName()) && sale.getQuantity() > 0) {
-
-                        sb.append("-------------------------------------- \n");
-                        sb.append("Vendedor: " + ut.getUserID() + "\n");
-                        sb.append("Preco: " + sale.getValue() + "\n");
-                        sb.append("Quantidade: " + sale.getQuantity() + "\n");
+                            sb.append("-------------------------------------- \n");
+                            sb.append("Vendedor: " + ut.getUserID() + "\n");
+                            sb.append("Preco: " + sale.getValue() + "\n");
+                            sb.append("Quantidade: " + sale.getQuantity() + "\n");
+                        }
                     }
+                    sucess = true;
+                    outStream.writeBytes(sb.toString());
                 }
-                outStream.writeBytes(sb.toString());
-                return -9999;
             }
 
             //buy
@@ -600,35 +593,35 @@ public class TintolmarketServer {
 
                 if(!contains) {
                     outStream.writeBytes("O vinho que deseja comprar nao existe! \n");
-                    throw new WineNotFoundException("O vinho que deseja comprar nao existe!");
-                }
-                boolean sold = false;//boolean to check if sale was already made
-                for (Utilizador utSeller : forSale.keySet()) {
-                    if(utSeller.getUserID().equals(splitCommand[2]) && !sold) {// find seller
+                } else {
 
-                        Triplet sale = forSale.get(utSeller);//venda encontrada a partir do seller
-                        if(sale.getQuantity() < Integer.parseInt(splitCommand[3])) {
-                            outStream.writeBytes("Nao existe quantidade suficiente deste vinho para venda!");
-                            throw new NotEnoughWineQuantityException("Nao existe quantidade suficiente deste vinho para venda!");
+                    boolean sold = false;//boolean to check if sale was already made
+                    for (Utilizador utSeller : forSale.keySet()) {
+
+                        if(utSeller.getUserID().equals(splitCommand[2]) && !sold) {// find seller
+
+                            Triplet sale = forSale.get(utSeller);//venda encontrada a partir do seller
+                            if(sale.getQuantity() < Integer.parseInt(splitCommand[3])) {
+                                outStream.writeBytes("Nao existe quantidade suficiente deste vinho para venda! \n");
+
+                            } else if(ut.getBalance() < sale.getValue()* (Integer.parseInt(splitCommand[3]))) { 
+                                outStream.writeBytes("Saldo insuficiente! \n");
+
+                            } else {
+                                sale.updateQuantity(-(Integer.parseInt(splitCommand[3])));
+                                ut.updateWallet(-(sale.getValue() * (Integer.parseInt(splitCommand[3]))));
+                                sold = true;
+                                sucess = true;
+                                outStream.writeBytes("Compra realizada com sucesso! \n");//yey
+                            } 
                         }
-
-                        if(ut.getBalance() < sale.getValue()* (Integer.parseInt(splitCommand[3]))) {
-                            outStream.writeBytes("Saldo insuficiente");
-                            throw new NotEnoughBudgetException("Saldo insuficiente!");
-                        }
-
-                        sale.updateQuantity(-(Integer.parseInt(splitCommand[3])));
-                        ut.updateWallet(-(sale.getValue() * (Integer.parseInt(splitCommand[3]))));
-                        sold = true;
-
                     }
                 }
-                outStream.writeBytes("Compra realizada com sucesso!");//yey
-                return -9999;
             }
 
             //wallet
             if (splitCommand[0].equals("wallet") || splitCommand[0].equals("w")) {
+                sucess = true;
                 outStream.write(ut.getBalance());
             }
 
@@ -641,17 +634,14 @@ public class TintolmarketServer {
                     if (wine.getName().equals(splitCommand[1]) && !contains){
                         wine.classify(Integer.parseInt(splitCommand[2]));
                         contains = true;
+                        outStream.writeBytes("Vinho classificado! \n");
+                        sucess = true;
                     }
                 }
 
                 if(!contains) {
                     outStream.writeBytes("O vinho que deseja classificar nao existe! \n");
-                    throw new WineNotFoundException("O vinho que deseja classificar nao existe!");
                 }
-
-                outStream.writeBytes("Vinho classificado!");
-
-                return -9999;
             }
 
             //talk
@@ -667,21 +657,22 @@ public class TintolmarketServer {
 
                 if(!contains) {
                     outStream.writeBytes("O utilizador nao existe! \n");
-                    throw new UtilizadorNotFoundException("O utilizador nao existe!");
+                } else {
+
+                    try {
+
+                        bwChat = new BufferedWriter(new FileWriter("data_bases/chat.txt"));
+                        bwChat.write(ut.getUserID() + ";" + splitCommand[1] + ";" + splitCommand[2] + "\n");
+                        outStream.writeBytes("Mensagem enviada! \n");
+
+                        sucess = true;
+
+                        bwChat.close();
+                    } catch (Exception e) {
+                        outStream.writeBytes("Erro no envio da mensagem! \n");
+                        e.printStackTrace();
+                    }
                 }
-
-                try {
-                    bwChat = new BufferedWriter(new FileWriter("data_bases/chat.txt"));
-                    bwChat.write(ut.getUserID() + ";" + splitCommand[1] + ";" + splitCommand[2] + "\n");
-
-                    bwChat.close();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-
-                outStream.writeBytes("Mensagem enviada!");
-
-                return -9999;
             }
 
             //read
@@ -696,22 +687,25 @@ public class TintolmarketServer {
                         String[] splitLine = line.split(";");
                         if (splitLine[1].equals(ut.getUserID())) {
 
-                            outStream.writeBytes("mensagem de" + splitLine[0] + " : " + splitLine[2]);
-                            bwChat.write("");   //remove msg from server
+                            outStream.writeBytes("mensagem de" + splitLine[0] + " : " + splitLine[2] + "\n");
+                            bwChat.write("" + "\n");   //remove msg from server
                         } else {
                             bwChat.write(line + "\n");
                         }
                     }
+
+                    sucess = true;
+
                     brChat.close();
                     bwChat.close();
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
-
-                return -9999;
             }
-
-            return -9998;
+            if (!sucess) {
+                outStream.writeBytes(("Comando Inválido! Indique um dos comandos apresentados acima. \n"));
+            }
+            
         }
 
 
