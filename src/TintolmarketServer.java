@@ -487,7 +487,6 @@ public class TintolmarketServer {
                         //seller;wine;price;quantity
                         bwSale.write(ut.getUserID() + ";" + sale.wine + ";" + sale.value + ";" + sale.quantity + "\n");
                     }
-                    
                 }
     
                 bwSale.close();
@@ -577,6 +576,8 @@ public class TintolmarketServer {
 
                                             sale.updateValue(Integer.parseInt(splitCommand[2])); //muda o preço
                                             sale.updateQuantity(Integer.parseInt(splitCommand[3])); //incrementa a quantidade
+
+                                            outStream.writeObject("Vinho ja se encontrava a venda. O preco foi alterado para " + Integer.parseInt(splitCommand[2]) + "\n");
                                             toUpdate = true;
                                         }
                                     }
@@ -584,15 +585,11 @@ public class TintolmarketServer {
                             }
 
                             if(!toUpdate) {
-
-                                System.out.println("antes" + forSale.size());
                                 ArrayList<Sale> sales = new ArrayList<>();
                                 sales.add(new Sale(wine, Integer.parseInt(splitCommand[2]), Integer.parseInt(splitCommand[3])));
                                 forSale.put(ut, sales);
+                                outStream.writeObject("Vinho colocado a venda! \n");
                             }
-                            
-                            outStream.writeObject("Vinho colocado a venda! \n");
-                            System.out.println("depois" + forSale.size());
                         }
                     }
                 }
