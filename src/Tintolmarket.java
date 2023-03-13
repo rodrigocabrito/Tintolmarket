@@ -2,7 +2,6 @@
 
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.Scanner;
 
@@ -15,7 +14,7 @@ import java.util.Scanner;
 
 public class Tintolmarket {
     
-    private static final int port = 11127;
+    private static final int port = 11144;
 
     public static void main(String[] args) {
         
@@ -34,7 +33,7 @@ public class Tintolmarket {
             while(true) {
 
                 //print menu
-                System.out.print((String) inStream.readObject());
+                System.out.print(inStream.readObject());
                 Scanner sc = new Scanner(System.in);
                 
                 //send command
@@ -47,10 +46,10 @@ public class Tintolmarket {
 
                 //print powering off
                 if (command.equals("exit")) {
-                    System.out.println((String) inStream.readObject());
+                    System.out.println(inStream.readObject());
                     sc.close();
-                    clientSocket.close();
                     System.exit(0);
+                    clientSocket.close();
                 }
             }            
 
