@@ -1,4 +1,4 @@
-package Tintolmarket.exceptions;
+package exceptions;
 
 /*
  * @authors:

@@ -1,7 +1,8 @@
-package main;
+
 
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.Scanner;
 
@@ -14,34 +15,35 @@ import java.util.Scanner;
 
 public class Tintolmarket {
     
-    private static int port = 12345;
+    private static final int port = 11127;
 
     public static void main(String[] args) {
         
         try {
             
-            Socket clientSocket = new Socket(args[1],port);
+            Socket clientSocket = new Socket(args[0],port);
 
             //streams
             ObjectInputStream inStream = new ObjectInputStream(clientSocket.getInputStream());
             ObjectOutputStream outStream = new ObjectOutputStream(clientSocket.getOutputStream());
 
             //authentication
-            outStream.writeObject(args[0]);
             outStream.writeObject(args[1]);
+            outStream.writeObject(args[2]);
 
             while(true) {
 
                 //print menu
-                System.out.println((String) inStream.readObject());
+                System.out.print((String) inStream.readObject());
                 Scanner sc = new Scanner(System.in);
                 
                 //send command
-                String command = sc.next();
+                String command = sc.nextLine();
+                System.out.println(command);
                 outStream.writeObject(command);
 
                 //print answer(s)
-                System.out.println((String) inStream.readObject());
+                System.out.println(inStream.readObject());
 
                 //print powering off
                 if (command.equals("exit")) {
