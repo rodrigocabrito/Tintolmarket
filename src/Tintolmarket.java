@@ -14,7 +14,7 @@ import java.util.Scanner;
 
 public class Tintolmarket {
     
-    private static final int port = 11144;
+    private static final int port = 11157;
 
     public static void main(String[] args) {
         
@@ -38,11 +38,10 @@ public class Tintolmarket {
                 
                 //send command
                 String command = sc.nextLine();
-                System.out.println(command);
                 outStream.writeObject(command);
 
-                //print answer(s)
-                System.out.println(inStream.readObject());
+                //print answer
+                System.out.println("\n" + inStream.readObject());
 
                 //print powering off
                 if (command.equals("exit")) {

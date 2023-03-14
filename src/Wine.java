@@ -31,12 +31,17 @@ public class Wine {
     }
 
     public int getAvgRate() {
-        int sum = 0;
-        for (Integer i : stars) {
-            sum += i;
-        }
 
-        return sum/(stars.size());
+        if(stars.size() == 0) {
+            return 0;
+        } else {
+            int sum = 0;
+            for (Integer i : stars) {
+                sum += i;
+            }
+
+            return sum/(stars.size());
+        }
     }
 
     public ArrayList<Integer> getStars() {

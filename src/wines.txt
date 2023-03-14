@@ -1,2 +1,4 @@
-vinho1;vinho1;
-vinho2;vinho2;
+vinho1;vinho1;5;
+vinho2;vinho2;1;
+vinho3;vinho3;4;
+vinho4;vinho4;3;
