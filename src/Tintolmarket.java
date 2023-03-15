@@ -1,5 +1,4 @@
 
-
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
@@ -14,7 +13,7 @@ import java.util.Scanner;
 
 public class Tintolmarket {
     
-    private static final int port = 11157;
+    private static final int port = 11177;
 
     public static void main(String[] args) {
         
@@ -40,15 +39,16 @@ public class Tintolmarket {
                 String command = sc.nextLine();
                 outStream.writeObject(command);
 
-                //print answer
-                System.out.println("\n" + inStream.readObject());
-
                 //print powering off
                 if (command.equals("exit")) {
                     System.out.println(inStream.readObject());
                     sc.close();
-                    System.exit(0);
                     clientSocket.close();
+                    System.exit(0);
+
+                } else {
+                    //print answer
+                    System.out.println("\n" + inStream.readObject());
                 }
             }            
 

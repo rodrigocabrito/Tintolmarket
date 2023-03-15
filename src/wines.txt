@@ -1,6 +1,8 @@
-vinho1;vinho1;5;
+vinho1;vinho1;5;4;
 vinho2;vinho2;1;
 vinho3;vinho3;4;
 vinho4;vinho4;3;
-cacha‡a;brazil;2;1;
+cachaï¿½a;brazil;2;1;
 vinho;vinho1;
+vinho5;vinho5;3;
+vinho6;vinho6;
