@@ -71,6 +71,7 @@ public class TintolmarketServer {
 
             serverSocket = new ServerSocket(port);
             serverSocket.setReuseAddress(true);
+            
 
         } catch (IOException e) {
             System.err.println(e.getMessage());
