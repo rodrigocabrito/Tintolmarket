@@ -20,14 +20,14 @@ public class Wine {
         this.stars = stars;
     }
 
-    public void classify(int stars) {
-        if (stars > 5)
+    public void classify(int star) {
+        if (star > 5) {
             this.stars.add(5);
-        
-        if (stars < 1)
+        } else if (star < 1) {
             this.stars.add(1);
-            
-        this.stars.add(stars);
+        } else {
+            this.stars.add(star);
+        }
     }
 
     public int getAvgRate() {

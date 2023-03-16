@@ -13,7 +13,7 @@ import java.util.Scanner;
 
 public class Tintolmarket {
     
-    private static final int port = 11177;
+    private static final int port = 11191;
 
     public static void main(String[] args) {
         
@@ -41,7 +41,7 @@ public class Tintolmarket {
 
                 //print powering off
                 if (command.equals("exit")) {
-                    System.out.println(inStream.readObject());
+                    System.out.println("\n" + inStream.readObject());
                     sc.close();
                     clientSocket.close();
                     System.exit(0);

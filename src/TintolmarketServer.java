@@ -14,7 +14,6 @@ import java.util.HashMap;
 
 /*
  * TODO quando se compra um vinho que nao esta a venda tem de dar erro
- * TODO buy
  * TODO read
  * TODO authentication so da para 1
  */
@@ -28,11 +27,7 @@ import java.util.HashMap;
 
 public class TintolmarketServer {
     
-    private static int port;
-
-    //authentication.txt
-    static BufferedReader brAuth = null;
-    static BufferedWriter bwAuth = null;
+    private static int port;    
 
     //balance.txt
     static BufferedReader brBal = null;
@@ -71,7 +66,8 @@ public class TintolmarketServer {
 
             serverSocket = new ServerSocket(port);
             serverSocket.setReuseAddress(true);
-            
+
+            bwChat = new BufferedWriter(new FileWriter("chat.txt"));
 
         } catch (IOException e) {
             System.err.println(e.getMessage());
@@ -85,12 +81,8 @@ public class TintolmarketServer {
 
 			try {
 
-                bwChat = new BufferedWriter(new FileWriter("chat.txt"));
-                bwBal = new BufferedWriter(new FileWriter("balance.txt"));
-                bwAuth = new BufferedWriter(new FileWriter("authentication.txt"));
-
 				clientSocket = serverSocket.accept();
-				clientThread = new clientHandlerThread(clientSocket, bwChat, bwBal, bwAuth, listaUts, listaWines, forSale);
+				clientThread = new clientHandlerThread(clientSocket, bwChat);
                 clientThread.start();
 		    }
 		    catch (IOException e) {
@@ -178,6 +170,8 @@ public class TintolmarketServer {
                 }
             }
         }
+
+        //update forSale HashMap
         try {
 
             brSale = new BufferedReader(new FileReader("forSale.txt"));
@@ -212,6 +206,9 @@ public class TintolmarketServer {
                 }
             }
         }
+
+        //update balancesMap
+
     }
 
     /*
@@ -253,24 +250,24 @@ public class TintolmarketServer {
         String line;
         while((line = br.readLine()) != null){
             String[]splitLine = line.split(";");
-
-            Utilizador utSale = null;
-            for (Utilizador u : listaUts) {
-                if(u.getUserID().equals(splitLine[0])){
-                    utSale = u;
-                }
-            }
-
-            Wine wSale = null;
-            for (Wine w : listaWines) {
-                if(w.getName().equals(splitLine[1])){
-                    wSale = w;
-                }
-            }
             
-            ArrayList<Sale> sales = new ArrayList<>();
-            sales.add(new Sale(wSale,Integer.parseInt(splitLine[2]),Integer.parseInt(splitLine[2])));
-            forSale.put(utSale,sales);
+                Utilizador utSale = null;
+                for (Utilizador u : listaUts) {
+                    if(u.getUserID().equals(splitLine[0])){
+                        utSale = u;
+                    }
+                }
+
+                Wine wSale = null;
+                for (Wine w : listaWines) {
+                    if(w.getName().equals(splitLine[1])){
+                        wSale = w;
+                    }
+                }
+                
+                ArrayList<Sale> sales = new ArrayList<>();
+                sales.add(new Sale(wSale, Integer.parseInt(splitLine[2]), Integer.parseInt(splitLine[2])));
+                forSale.put(utSale,sales);
         }
         System.out.println("listaForSale updated");
     }
@@ -278,7 +275,7 @@ public class TintolmarketServer {
     /*
      * Classe que representa todos os argumentos de uma venda para alem do vendedor (Wine,price,quantity)
      */
-    static class Sale {
+    protected static class Sale {
         private final Wine wine;
         private int value;
         private int quantity;
@@ -318,25 +315,16 @@ public class TintolmarketServer {
         private Socket socket;
         private static Utilizador ut = null;
 
-        private static ArrayList<Utilizador> listaUts = new ArrayList<>();
-        private static ArrayList<Wine> listaWines = new ArrayList<>();
-        private static HashMap<Utilizador,ArrayList<Sale>> forSale = new HashMap<>();
+        private ObjectOutputStream outStream;
+        private ObjectInputStream inStream;
 
-        ObjectOutputStream outStream;
-        ObjectInputStream inStream;
+        private BufferedWriter bwChat = null;
+        private BufferedWriter bwAuth = null;
+        private BufferedReader brAuth = null;
 
-        BufferedWriter bwChat = null;
-        BufferedWriter bwBal = null;
-        BufferedWriter bwAuth = null;
-
-        clientHandlerThread(Socket socket, BufferedWriter bwChat, BufferedWriter bwBal, BufferedWriter bwAuth, ArrayList<Utilizador> listaUts, ArrayList<Wine> listaWines, HashMap<Utilizador, ArrayList<TintolmarketServer.Sale>> forSale) {
+        clientHandlerThread(Socket socket, BufferedWriter bwChat) {
             this.socket = socket;
             this.bwChat = bwChat;
-            this.bwBal = bwBal;
-            this.bwAuth = bwAuth;
-            this.listaUts = listaUts;
-            this.listaWines = listaWines;
-            this.forSale = forSale;
         }
 
         public void run() {
@@ -344,8 +332,8 @@ public class TintolmarketServer {
             //streams
             try {
 
-                ObjectOutputStream outStream = new ObjectOutputStream(socket.getOutputStream());
-			    ObjectInputStream inStream = new ObjectInputStream(socket.getInputStream());
+                outStream = new ObjectOutputStream(socket.getOutputStream());
+			    inStream = new ObjectInputStream(socket.getInputStream());
 
                 String clientID = null;
                 String passwd = null;
@@ -370,21 +358,19 @@ public class TintolmarketServer {
                     if(newUser) {
                         ut = new Utilizador(clientID, 200);
                         listaUts.add(ut);
-                        bwBal.write(ut.getUserID() + ";" + ut.getBalance());
                     }
 
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
 
-                // writer/reader -> authentication.txt
-
                 boolean registered = false;
                 String line = " : ";
 
-                brAuth = new BufferedReader(new FileReader("authentication.txt"));
-
                 StringBuilder sb = new StringBuilder();
+
+                bwAuth = new BufferedWriter(new FileWriter("authentication.txt"));
+                brAuth = new BufferedReader(new FileReader("authentication.txt"));
 
                 while(((line = brAuth.readLine()) != null)) {
 
@@ -421,20 +407,31 @@ public class TintolmarketServer {
                 //authentication
                 String[] splitLine = lineForSplit.split(":");
                 if (splitLine[1].equals(passwd)) {
+
+                    updateBalance();
                     
                     String command;
-                    boolean exit = false;
 
-                    while(!exit) {
+                    while(true) {
                         
                         outStream.writeObject(menu());
                         command = (String) inStream.readObject();
 
                         if(command.equals("exit")) {
-                            exit = true;
+                            outStream.writeObject("Powering off... \n");
+
+                            //close streams and socket
+                            if (outStream != null) {
+                                outStream.close();   
+                            }
+                            if (inStream != null) {
+                                inStream.close();
+                                socket.close();
+                            }
+
                         } else {
                             process(command, outStream, listaUts, listaWines, forSale, bwChat);
-                            updateDataBases(bwBal);
+                            //updateDataBases();
                         }
                     }
 
@@ -445,61 +442,30 @@ public class TintolmarketServer {
 
             } catch (Exception e) {
                 e.printStackTrace();
-
-            } finally {
-
-                try {
-
-                    outStream.writeObject("Powering off... \n");
-
-                    //close streams and socket
-                    if (outStream != null) {
-                        outStream.close();   
-                    }
-                    if (inStream != null) {
-                        inStream.close();
-                        socket.close();
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
             }
-            
         }
 
-        private static void updateDataBases(BufferedWriter bwBalance) {
-        
-            //update balance.txt (balance of all Utilizador)
+        private static void updateBalance() {
             try {
 
-                brBal = new BufferedReader(new FileReader("balance.txt"));
-                
-                String line;
+                bwBal = new BufferedWriter(new FileWriter("balance.txt"));
                 
                 if (listaUts.size() != 0) {
                     for (Utilizador u : listaUts) {
-                        while ((line = brBal.readLine()) != null) {
-            
-                            String[] splitLine = line.split(";");
-
-                            if (splitLine[0].equals(u.getUserID())) {
-                                bwBalance.write(splitLine[0] + ";" + u.getBalance() + "\n"); //utilizador;saldo
-                            } else {
-                                bwBalance.write(line + "\n");
-                            }
-                        }
+                        bwBal.write(u.getUserID() + ";" + u.getBalance() + "\n");
                     }
                 }
 
-                brBal.close();
+                bwBal.close();
     
             } catch (Exception e) {
                 e.printStackTrace();
             }
-            
-            //update Wines.txt
+        }
+
+        private static void updateWines() {
             try {
-                brWine = new BufferedReader(new FileReader("wines.txt"));
+
                 bwWine = new BufferedWriter(new FileWriter("wines.txt"));
     
                 for (Wine wine : listaWines) {
@@ -514,15 +480,17 @@ public class TintolmarketServer {
                     //nome;imagem;star1;star2;star3...
                     bwWine.write(wine.getName() + ";" + wine.getImage() + ";" + stars + "\n");
                 }
-                brWine.close();
+
                 bwWine.close();
     
             } catch (Exception e) {
                 e.printStackTrace();
             }
-    
-            //update forSale.txt
+        }
+
+        private static void updateForSale() {
             try {
+
                 bwSale = new BufferedWriter(new FileWriter("forSale.txt"));
                 
                 if (forSale.size() != 0) {
@@ -536,8 +504,6 @@ public class TintolmarketServer {
                                 //seller;wine;price;quantity
                                 bwSale.write(u.getUserID() + ";" + (sale.getWine()).getName() + ";" + sale.getValue() + ";" + sale.getQuantity() + "\n");
                             }
-
-                            bwSale.flush(); 
                         }
                     }
                 }
@@ -584,6 +550,8 @@ public class TintolmarketServer {
                         }                        
                     }
                 }
+
+                updateWines();
             }
 
             //sell
@@ -648,6 +616,8 @@ public class TintolmarketServer {
                         }
                     }
                 }
+
+                updateForSale();
             }
 
             //view
@@ -715,7 +685,7 @@ public class TintolmarketServer {
                     if(!contains) {
                         outStream.writeObject("O vinho que deseja comprar nao existe! \n");
                     } else {
-
+                        boolean notFound = true;
                         boolean sold = false;//boolean to check if sale was already made
                         for (Utilizador utSeller : forSale.keySet()) {
 
@@ -724,25 +694,36 @@ public class TintolmarketServer {
                                 ArrayList<Sale> sales = forSale.get(utSeller); //vendas encontradas a partir do seller
                                 for(Sale sale : sales) {
 
-                                    if(sale.getQuantity() < Integer.parseInt(splitCommand[3])) {
-                                        outStream.writeObject("Nao existe quantidade suficiente deste vinho para venda! \n");
-
-                                    } else if(ut.getBalance() < sale.getValue()* (Integer.parseInt(splitCommand[3]))) { 
-                                        outStream.writeObject("Saldo insuficiente! \n");
-
-                                    } else {
-                                        sale.updateQuantity(-(Integer.parseInt(splitCommand[3]))); 
-                                        ut.updateWallet(-(sale.getValue() * (Integer.parseInt(splitCommand[3]))));      //comprador desconta o dinheiro
-                                        utSeller.updateWallet(sale.getValue() * (Integer.parseInt(splitCommand[3])));   //seller recebe o dinheiro
-                                        sold = true;
+                                    if(sale.getWine().getName().equals(splitCommand[1])) {
+                                        notFound = false;
                                         
-                                        outStream.writeObject("Compra realizada com sucesso! \n");//yey
+                                        if(sale.getQuantity() < Integer.parseInt(splitCommand[3])) {
+                                            outStream.writeObject("Nao existe quantidade suficiente deste vinho para venda! \n");
+
+                                        } else if(ut.getBalance() < (sale.getValue()* (Integer.parseInt(splitCommand[3])))) { 
+                                            outStream.writeObject("Saldo insuficiente! \n");
+
+                                        } else {
+                                            sale.updateQuantity(-(Integer.parseInt(splitCommand[3]))); 
+                                            ut.updateWallet(-(sale.getValue() * (Integer.parseInt(splitCommand[3]))));      //comprador desconta o dinheiro
+                                            utSeller.updateWallet(sale.getValue() * (Integer.parseInt(splitCommand[3])));   //seller recebe o dinheiro
+                                            sold = true;
+                                            
+                                            outStream.writeObject("Compra realizada com sucesso! \n");//yey
+                                        }
                                     }
                                 }
                             }
                         }
+
+                        if(notFound) {
+                            outStream.writeObject("O vinho indicado nao se encontra a venda!");
+                        }
                     }
                 }
+
+                updateForSale();
+                updateBalance();
             }
 
             //wallet
@@ -771,6 +752,8 @@ public class TintolmarketServer {
                         outStream.writeObject("O vinho que deseja classificar nao existe! \n");
                     }
                 }
+
+                updateWines();
             }
 
             //talk
@@ -823,7 +806,7 @@ public class TintolmarketServer {
                             String[] splitLine = line.split(";");
                             if (splitLine[1].equals(ut.getUserID())) {
 
-                                outStream.writeObject("mensagem de" + splitLine[0] + " : " + splitLine[2] + "\n");
+                                outStream.writeObject("mensagem de" + splitLine[0] + " : >" + splitLine[2] + "\n");
                                 empty = false;
                                 bw.write("" + "\n");   //remove msg from server
                             } else {

@@ -1,2 +1,1 @@
-client1;vinho1;5;10
-client1;vinho2;10;4
+client2;vinho7;100;100
