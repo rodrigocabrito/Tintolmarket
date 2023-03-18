@@ -2,7 +2,7 @@ vinho1;vinho1;5;4;
 vinho2;vinho2;1;5;
 vinho3;vinho3;4;5;
 vinho4;vinho4;3;1;
-vinho5;vinho5;3;
+vinho5;vinho5;3;5;
 vinho6;vinho6;2;5;
 vinho7;vinho7;5;
 vinho8;vinho8;5;

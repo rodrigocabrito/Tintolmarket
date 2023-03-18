@@ -1,3 +1,0 @@
-client1;vinho4;8;12
-client1;vinho1;100;2
-client1;vinho3;50;4

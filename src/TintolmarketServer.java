@@ -15,7 +15,8 @@ import java.util.HashMap;
 /*
  * TODO quando se compra um vinho que nao esta a venda tem de dar erro
  * TODO read
- * TODO authentication so da para 1
+ * TODO quando todas as unidades de um vinho sao compradas sai da lista e do txt forSale
+ * TODO quando outro client faz sell o forSale.txt nao funfa bem
  */
 
 /*
@@ -59,8 +60,8 @@ public class TintolmarketServer {
             port = 12345;
         } else {
             port = Integer.parseInt(args[0]);
-        } */
-        port = 11200;
+        }*/
+        port = 11205;
     
         ServerSocket serverSocket = null;
 
@@ -83,7 +84,7 @@ public class TintolmarketServer {
 			try {
 
 				clientSocket = serverSocket.accept();
-				clientThread = new clientHandlerThread(clientSocket, bwChat);
+				clientThread = new clientHandlerThread(clientSocket);
                 clientThread.start();
 		    }
 		    catch (IOException e) {
@@ -319,13 +320,11 @@ public class TintolmarketServer {
         private ObjectOutputStream outStream;
         private ObjectInputStream inStream;
 
-        private BufferedWriter bwChat = null;
         private BufferedWriter bwAuth = null;
         private BufferedReader brAuth = null;
 
-        clientHandlerThread(Socket socket, BufferedWriter bwChat) {
+        clientHandlerThread(Socket socket) {
             this.socket = socket;
-            this.bwChat = bwChat;
         }
 
         public void run() {
@@ -516,9 +515,10 @@ public class TintolmarketServer {
 
                         if (sales.size() != 0) {
                             for (Sale sale : sales) {
-
-                                //seller;wine;price;quantity
-                                bwSale.write(u.getUserID() + ";" + (sale.getWine()).getName() + ";" + sale.getValue() + ";" + sale.getQuantity() + "\n");
+                                if(sale.getQuantity() > 0) {
+                                    //seller;wine;price;quantity
+                                    bwSale.write(u.getUserID() + ";" + (sale.getWine()).getName() + ";" + sale.getValue() + ";" + sale.getQuantity() + "\n");
+                                }
                             }
                         }
                     }
@@ -526,6 +526,30 @@ public class TintolmarketServer {
 
                 bwSale.close();
     
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        private static void updateChat(String receiver, String msg) {
+
+            try {
+
+                brChat = new BufferedReader(new FileReader("chat.txt"));
+                String line;
+                StringBuilder sb = new StringBuilder();
+
+                while ((line = brChat.readLine()) != null) {
+                    sb.append(line);
+                }
+
+                bwChat = new BufferedWriter(new FileWriter("chat.txt"));
+
+                //sender;receiver;msg
+                bwChat.write(sb.toString() + "\n");
+                bwChat.write(ut.getUserID() + ";" + receiver + ";" + msg + "\n");
+                bwChat.close();
+
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -622,8 +646,11 @@ public class TintolmarketServer {
 
                             if(!updated) {
 
-                                ArrayList<Sale> sales = new ArrayList<>();
-                                sales = forSale.get(ut);
+                                ArrayList<Sale> sales = forSale.get(ut);
+
+                                if (sales == null) {
+                                    sales = new ArrayList<>();
+                                }
 
                                 sales.add(new Sale(wine, Integer.parseInt(splitCommand[2]), Integer.parseInt(splitCommand[3])));
                                 forSale.put(ut, sales);
@@ -669,7 +696,7 @@ public class TintolmarketServer {
 
                                     sb.append("-------------------------------------- \n");
                                     sb.append("Vendedor: " + ut.getUserID() + "\n");
-                                    sb.append("Preco: " + sale.getValue() + "\n");
+                                    sb.append("Preco unitario: " + sale.getValue() + "\n");
                                     sb.append("Quantidade: " + sale.getQuantity() + "\n");
                                 }
                             }                        
@@ -726,6 +753,11 @@ public class TintolmarketServer {
                                             sold = true;
                                             
                                             outStream.writeObject("Compra realizada com sucesso! \n");//yey
+
+                                            // remover venda com quantidade 0
+                                            if (sale.getQuantity() == 0) {
+                                                sales.remove(sale);
+                                            }
                                         }
                                     }
                                 }
@@ -793,8 +825,8 @@ public class TintolmarketServer {
 
                         try {
 
-                            bw.write(ut.getUserID() + ";" + splitCommand[1] + ";" + splitCommand[2] + "\n");
-                            outStream.writeObject("Mensagem enviada! \n");
+                            updateChat(splitCommand[1], splitCommand[2]);
+                            outStream.writeObject("Mensagem enviada com sucesso!");
 
                         } catch (Exception e) {
                             outStream.writeObject("Erro no envio da mensagem! \n");
@@ -813,25 +845,33 @@ public class TintolmarketServer {
 
                 } else {
                     try {
+
                         brChat = new BufferedReader(new FileReader("chat.txt"));
                         String line;
                         boolean empty = true;
+                        StringBuilder serverChat = new StringBuilder();
+                        StringBuilder message = new StringBuilder();
 
                         while ((line = brChat.readLine()) != null) {
 
                             String[] splitLine = line.split(";");
                             if (splitLine[1].equals(ut.getUserID())) {
-
-                                outStream.writeObject("mensagem de" + splitLine[0] + " : >" + splitLine[2] + "\n");
+                                //remove msg from server
+                                message.append("mensagem de" + splitLine[0] + " : >" + splitLine[2] + "\n");
                                 empty = false;
-                                bw.write("" + "\n");   //remove msg from server
                             } else {
-                                bw.write(line + "\n");
+                                serverChat.append(line + "\n");
                             }
                         }
 
                         if (empty) {
                             outStream.writeObject("Nao tem mensagens por ler!");
+
+                        } else {
+                            outStream.writeObject(message);
+                            bwChat = new BufferedWriter(new FileWriter("chat.txt"));
+                            bwChat.write(serverChat.toString() + "\n");
+                            bwChat.close();
                         }
 
                         brChat.close();
@@ -844,11 +884,6 @@ public class TintolmarketServer {
                 outStream.writeObject(("Comando Inválido! Indique um dos comandos apresentados acima. \n"));
             }
             
-        }
-
-
-        private static Utilizador getUtilizador() {
-            return ut;
         }
 
         /*
