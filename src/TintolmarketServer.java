@@ -54,18 +54,19 @@ public class TintolmarketServer {
         //update structures in server from .txt files
         updateServerMemory();
 
+        /*
         if (args.length == 0) {
             port = 12345;
         } else {
             port = Integer.parseInt(args[0]);
-        }
+        } */
+        port = 11200;
     
         ServerSocket serverSocket = null;
 
         try {
 
             serverSocket = new ServerSocket(port);
-            serverSocket.setReuseAddress(true);
 
             bwChat = new BufferedWriter(new FileWriter("chat.txt"));
 
@@ -87,9 +88,9 @@ public class TintolmarketServer {
 		    }
 		    catch (IOException e) {
 		        e.printStackTrace();
+                
             }
         }
-
         //serverSocket.close();
     }
 
@@ -337,13 +338,12 @@ public class TintolmarketServer {
 
                 String clientID = null;
                 String passwd = null;
+                boolean newUser = true;
 
                 try {
 
                     clientID = (String) inStream.readObject();
                     passwd = (String) inStream.readObject();
-
-                    boolean newUser = true;
 
                     if (listaUts.size() != 0) {
 
@@ -364,30 +364,44 @@ public class TintolmarketServer {
                     e.printStackTrace();
                 }
 
-                boolean registered = false;
                 String line = " : ";
 
                 StringBuilder sb = new StringBuilder();
 
-                bwAuth = new BufferedWriter(new FileWriter("authentication.txt"));
-                brAuth = new BufferedReader(new FileReader("authentication.txt"));
+                try {
 
-                while(((line = brAuth.readLine()) != null)) {
+                    brAuth = new BufferedReader(new FileReader("authentication.txt"));
+        
+                } catch (FileNotFoundException e) {
+        
+                    System.out.println("File not found, creating file...");
+                    //file doesn't exist, create it
+                    try {
+        
+                        FileWriter fw = new FileWriter("authentication.txt");
+                        fw.close();
 
-                    sb.append(line + "\n");
+                        brAuth = new BufferedReader(new FileReader("authentication.txt"));
 
-                    if (line.contains(clientID) && !registered) {
-                        registered = true;
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
                     }
                 }
-                
+
+                while(((line = brAuth.readLine()) != null)) {
+                    sb.append(line + "\n");
+                }
                 brAuth.close();
 
+                bwAuth = new BufferedWriter(new FileWriter("authentication.txt"));
                 //check if registered
-                if (!registered) {
+                if (newUser) {
 
                     sb.append(clientID + ":" + passwd + "\n");
                     
+                    bwAuth.write(sb.toString());
+                    bwAuth.close();
+                } else {
                     bwAuth.write(sb.toString());
                     bwAuth.close();
                 }
@@ -411,8 +425,9 @@ public class TintolmarketServer {
                     updateBalance();
                     
                     String command;
+                    boolean exit = false;
 
-                    while(true) {
+                    while(!exit) {
                         
                         outStream.writeObject(menu());
                         command = (String) inStream.readObject();
@@ -427,6 +442,7 @@ public class TintolmarketServer {
                             if (inStream != null) {
                                 inStream.close();
                                 socket.close();
+                                exit = true;
                             }
 
                         } else {

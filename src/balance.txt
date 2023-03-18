@@ -1,2 +1,0 @@
-client1;40
-client2;360
