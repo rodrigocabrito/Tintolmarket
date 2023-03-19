@@ -13,8 +13,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 /*
- * TODO quando se compra um vinho que nao esta a venda tem de dar erro
- * TODO quando todas as unidades de um vinho sao compradas, deve sair da lista e do txt forSale
+ * porto opcional nos args do client
+ * add enviar ficheiro da pasta clientFiles para server + server receber ficheiro e armazenar na pasta serverFiles
+ * view receber ficheiro do server e armazenar na pasta clientFiles
  */
 
 /*
@@ -53,13 +54,11 @@ public class TintolmarketServer {
         //update structures in server from .txt files
         updateServerMemory();
 
-        /*
         if (args.length == 0) {
             port = 12345;
         } else {
             port = Integer.parseInt(args[0]);
-        }*/
-        port = 11212;
+        }
     
         ServerSocket serverSocket = null;
 
@@ -808,7 +807,7 @@ public class TintolmarketServer {
                 
                 if (splitCommand[1].equals(ut.getUserID())) {
                     outStream.writeObject("Comando invalido! O <receiver> nao pode ser o proprio!");
-                    
+
                 } else {
                     for (Utilizador u : listaUts) {
                         if(u.getUserID().equals(splitCommand[1]) && !contains) {
