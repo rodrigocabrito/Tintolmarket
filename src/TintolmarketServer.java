@@ -14,9 +14,7 @@ import java.util.HashMap;
 
 /*
  * TODO quando se compra um vinho que nao esta a venda tem de dar erro
- * TODO read
- * TODO quando todas as unidades de um vinho sao compradas sai da lista e do txt forSale
- * TODO quando outro client faz sell o forSale.txt nao funfa bem
+ * TODO quando todas as unidades de um vinho sao compradas, deve sair da lista e do txt forSale
  */
 
 /*
@@ -61,15 +59,13 @@ public class TintolmarketServer {
         } else {
             port = Integer.parseInt(args[0]);
         }*/
-        port = 11205;
+        port = 11212;
     
         ServerSocket serverSocket = null;
 
         try {
 
             serverSocket = new ServerSocket(port);
-
-            bwChat = new BufferedWriter(new FileWriter("chat.txt"));
 
         } catch (IOException e) {
             System.err.println(e.getMessage());
@@ -540,13 +536,13 @@ public class TintolmarketServer {
                 StringBuilder sb = new StringBuilder();
 
                 while ((line = brChat.readLine()) != null) {
-                    sb.append(line);
+                    sb.append(line + "\n");
                 }
 
                 bwChat = new BufferedWriter(new FileWriter("chat.txt"));
 
                 //sender;receiver;msg
-                bwChat.write(sb.toString() + "\n");
+                bwChat.write(sb.toString());
                 bwChat.write(ut.getUserID() + ";" + receiver + ";" + msg + "\n");
                 bwChat.close();
 
@@ -808,10 +804,11 @@ public class TintolmarketServer {
             if (splitCommand[0].equals("talk") || splitCommand[0].equals("t")) {
                 isValid = true;
                 boolean contains = false;
+                StringBuilder message = new StringBuilder();
                 
-                if (splitCommand.length != 3) {
-                    outStream.writeObject("Comando invalido! A operacao talk necessita de 2 argumentos <user> <message>.");
-
+                if (splitCommand[1].equals(ut.getUserID())) {
+                    outStream.writeObject("Comando invalido! O <receiver> nao pode ser o proprio!");
+                    
                 } else {
                     for (Utilizador u : listaUts) {
                         if(u.getUserID().equals(splitCommand[1]) && !contains) {
@@ -823,9 +820,13 @@ public class TintolmarketServer {
                         outStream.writeObject("O utilizador nao existe! \n");
                     } else {
 
-                        try {
+                        try {  
 
-                            updateChat(splitCommand[1], splitCommand[2]);
+                            for (int i = 2; i < splitCommand.length; i++) {
+                                message.append(splitCommand[i] + " ");
+                            }
+
+                            updateChat(splitCommand[1], message.toString());
                             outStream.writeObject("Mensagem enviada com sucesso!");
 
                         } catch (Exception e) {
@@ -854,13 +855,15 @@ public class TintolmarketServer {
 
                         while ((line = brChat.readLine()) != null) {
 
-                            String[] splitLine = line.split(";");
-                            if (splitLine[1].equals(ut.getUserID())) {
-                                //remove msg from server
-                                message.append("mensagem de" + splitLine[0] + " : >" + splitLine[2] + "\n");
-                                empty = false;
-                            } else {
-                                serverChat.append(line + "\n");
+                            if (!line.equals("")) {
+                                String[] splitLine = line.split(";");
+                                if (splitLine[1].equals(ut.getUserID())) {
+                                    //remove msg from server
+                                    message.append("mensagem de " + splitLine[0] + " : " + splitLine[2] + "\n");
+                                    empty = false;
+                                } else {
+                                    serverChat.append(line + "\n");
+                                }
                             }
                         }
 
@@ -870,7 +873,7 @@ public class TintolmarketServer {
                         } else {
                             outStream.writeObject(message);
                             bwChat = new BufferedWriter(new FileWriter("chat.txt"));
-                            bwChat.write(serverChat.toString() + "\n");
+                            bwChat.write(serverChat.toString());
                             bwChat.close();
                         }
 

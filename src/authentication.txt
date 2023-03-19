@@ -1,0 +1,2 @@
+client1:passwd1
+client2:passwd2
