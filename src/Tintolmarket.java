@@ -18,8 +18,15 @@ public class Tintolmarket {
     public static void main(String[] args) {
         
         try {
-            
-            Socket clientSocket = new Socket(args[0],port);
+
+            Socket clientSocket = null;
+            String[] ipPort = args[0].split(":");
+
+            if (ipPort.length == 1) {
+                clientSocket = new Socket(args[0],port); //TODO change to 12345
+            } else {
+                clientSocket = new Socket(ipPort[0],Integer.parseInt(ipPort[1]));
+            }
 
             //streams
             ObjectInputStream inStream = new ObjectInputStream(clientSocket.getInputStream());
