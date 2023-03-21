@@ -1,10 +1,13 @@
 
 import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.OutputStream;
 import java.net.Socket;
 import java.util.Scanner;
 
@@ -16,6 +19,8 @@ import java.util.Scanner;
  */
 
 public class Tintolmarket {
+
+    private static final String CLIENT_DIR = "./clientFiles/";
 
     public static void main(String[] args) {
         
@@ -44,12 +49,66 @@ public class Tintolmarket {
                 System.out.print(inStream.readObject());
                 Scanner sc = new Scanner(System.in);
                 
-                //send command
+                // get command from system in
                 String command = sc.nextLine();
 
-                
+                String[] splitCommand = command.split(" ");
 
-                outStream.writeObject(command);
+                if (splitCommand[0].equals("add") || splitCommand[0].equals("a")) {
+
+                    outStream.writeObject(command); //send command
+
+                    File fileToSend = new File(CLIENT_DIR + splitCommand[2]);
+                    FileInputStream fileInputStream = new FileInputStream(fileToSend);
+                    InputStream inputFile = new BufferedInputStream(fileInputStream);
+                
+                    byte[] buffer = new byte[1024];
+                    outStream.writeObject((int) fileToSend.length());
+                    int bytesRead;
+                    
+                    // enviar ficheiro
+                    while ((bytesRead = inputFile.read(buffer)) != -1) {
+                        outStream.write(buffer, 0, bytesRead); //send file
+                    }
+
+                    fileInputStream.close();
+
+                } else if (splitCommand[0].equals("view") || splitCommand[0].equals("v")) {
+
+                    outStream.writeObject(command); //send command
+
+                    int filesize;
+                    int bytesRead;
+                    byte[] buffer = new byte[1024];
+
+                    File f = new File(CLIENT_DIR + splitCommand[1]);
+                    FileOutputStream fileOutputStream = new FileOutputStream(f);
+                    OutputStream outputFile = new BufferedOutputStream(fileOutputStream);
+
+                    try {
+                        filesize = (int) inStream.readObject();
+                        int totalsize = filesize;
+
+                        //receive file
+                        while (totalsize > 0 ) {
+                            if(totalsize >= 1024) {
+                                bytesRead = inStream.read(buffer,0,1024);
+                            } else {
+                                bytesRead = inStream.read(buffer,0,totalsize);
+                            }
+                            outputFile.write(buffer,0,bytesRead);
+                            totalsize -= bytesRead;
+                        }
+
+                        outputFile.close();
+                        fileOutputStream.close();
+                    } catch (ClassNotFoundException e) {
+                        e.printStackTrace();
+                    }
+
+                } else {
+                    outStream.writeObject(command); //send command
+                }
 
                 //print powering off
                 if (command.equals("exit")) {
