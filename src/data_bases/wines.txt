@@ -9,3 +9,4 @@ vinho8;vinho8;5;
 vinho9;vinho9;5;
 vinho10;vinho10;5;
 vinho11;vinho11;5;
+vinho12;vinho12;2;

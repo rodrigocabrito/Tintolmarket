@@ -1,4 +1,3 @@
-
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.FileNotFoundException;
@@ -15,7 +14,6 @@ import java.util.HashMap;
 /*
  * add enviar ficheiro da pasta clientFiles para server + server receber ficheiro e armazenar na pasta serverFiles
  * view receber ficheiro do server e armazenar na pasta clientFiles
- * add metodo addShutDownHook() para fechar porto do server
  */
 
 /*
@@ -45,11 +43,14 @@ public class TintolmarketServer {
     static BufferedReader brChat = null;
     static BufferedWriter bwChat = null;
 
-    private static final String AUTHENTICATION_FILE = "authentication.txt";
-    private static final String BALANCE_FILE = "balance.txt";
-    private static final String WINES_FILE = "wines.txt";
-    private static final String FORSALE_FILE = "forSale.txt";
-    private static final String CHAT_FILE = "chat.txt";
+    private static final String AUTHENTICATION_FILE = "./data_bases/authentication.txt";
+    private static final String BALANCE_FILE = "./data_bases/balance.txt";
+    private static final String WINES_FILE = "./data_bases/wines.txt";
+    private static final String FORSALE_FILE = "./data_bases/forSale.txt";
+    private static final String CHAT_FILE = "./data_bases/chat.txt";
+
+    private static final String SERVER_DIR = "./serverFiles/";
+    private static final String CLIENT_DIR = "./clientFiles/";
 
     private static ArrayList<Utilizador> listaUts = new ArrayList<>();
     private static ArrayList<Wine> listaWines = new ArrayList<>();
@@ -59,6 +60,16 @@ public class TintolmarketServer {
 
         // update structures in server from .txt files
         updateServerMemory();
+
+
+        try {
+            BufferedReader br = new BufferedReader(new FileReader(CHAT_FILE));
+            br.close();
+        } catch (FileNotFoundException e) {
+            // create chat.txt
+            FileWriter f = new FileWriter(CHAT_FILE);
+            f.close();
+        }
 
         if (args.length == 0) {
             port = 12345;
@@ -177,7 +188,7 @@ public class TintolmarketServer {
         try {
 
             brSale = new BufferedReader(new FileReader(FORSALE_FILE));
-            fillListaForSale(brSale);
+            fillMapForSale(brSale);
             brSale.close();
 
         } catch (FileNotFoundException e) {
@@ -190,7 +201,7 @@ public class TintolmarketServer {
                 fw.close();
 
                 brSale = new BufferedReader(new FileReader(FORSALE_FILE));
-                fillListaForSale(brSale);
+                fillMapForSale(brSale);
                 brSale.close();
 
             } catch (IOException ex) {
@@ -208,8 +219,6 @@ public class TintolmarketServer {
                 }
             }
         }
-
-        // update balancesMap
 
     }
 
@@ -249,7 +258,7 @@ public class TintolmarketServer {
      * for each line in forSale.txt, create a Sale and add to hashmap
      * forSale(Utilizador,Sales)
      */
-    private static void fillListaForSale(BufferedReader br) throws NumberFormatException, IOException {
+    private static void fillMapForSale(BufferedReader br) throws NumberFormatException, IOException {
         String line;
         while ((line = br.readLine()) != null) {
             String[] splitLine = line.split(";");
@@ -268,8 +277,13 @@ public class TintolmarketServer {
                 }
             }
 
-            ArrayList<Sale> sales = new ArrayList<>();
-            sales.add(new Sale(wSale, Integer.parseInt(splitLine[2]), Integer.parseInt(splitLine[2])));
+            ArrayList<Sale> sales = forSale.get(utSale);
+
+            if (sales == null) {
+                sales = new ArrayList<>();
+            }
+            
+            sales.add(new Sale(wSale, Integer.parseInt(splitLine[2]), Integer.parseInt(splitLine[3])));
             forSale.put(utSale, sales);
         }
         System.out.println("listaForSale updated");
@@ -749,6 +763,8 @@ public class TintolmarketServer {
                             if (utSeller.getUserID().equals(splitCommand[2]) && !sold) {// find seller
 
                                 ArrayList<Sale> sales = forSale.get(utSeller); // vendas encontradas a partir do seller
+                                
+                                Sale saleToRemove = null;
                                 for (Sale sale : sales) {
 
                                     if (sale.getWine().getName().equals(splitCommand[1])) {
@@ -778,11 +794,12 @@ public class TintolmarketServer {
 
                                             // remover venda com quantidade 0
                                             if (sale.getQuantity() == 0) {
-                                                sales.remove(sale);
+                                                saleToRemove = sale;
                                             }
                                         }
                                     }
                                 }
+                                sales.remove(saleToRemove);
                             }
                         }
 

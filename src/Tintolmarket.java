@@ -1,4 +1,8 @@
 
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
@@ -12,8 +16,6 @@ import java.util.Scanner;
  */
 
 public class Tintolmarket {
-    
-    private static final int port = 11212;
 
     public static void main(String[] args) {
         
@@ -23,7 +25,7 @@ public class Tintolmarket {
             String[] ipPort = args[0].split(":");
 
             if (ipPort.length == 1) {
-                clientSocket = new Socket(args[0],port); //TODO change to 12345
+                clientSocket = new Socket(args[0],12345);
             } else {
                 clientSocket = new Socket(ipPort[0],Integer.parseInt(ipPort[1]));
             }
@@ -44,6 +46,9 @@ public class Tintolmarket {
                 
                 //send command
                 String command = sc.nextLine();
+
+                
+
                 outStream.writeObject(command);
 
                 //print powering off
