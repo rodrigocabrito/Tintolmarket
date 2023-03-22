@@ -66,18 +66,20 @@ public class Tintolmarket {
                     outStream.writeObject((int) fileToSend.length());
                     int bytesRead;
                     
-                    // enviar ficheiro
+                    // enviar ficheiro   7100bytes
                     while ((bytesRead = inputFile.read(buffer)) != -1) {
+                        System.out.println(bytesRead);
                         outStream.write(buffer, 0, bytesRead); //send file
                     }
 
+                    System.out.println("File sent!");
                     fileInputStream.close();
 
                 } else if (splitCommand[0].equals("view") || splitCommand[0].equals("v")) {
 
                     outStream.writeObject(command); //send command
 
-                    int filesize;
+                    int fileSize;
                     int bytesRead;
                     byte[] buffer = new byte[1024];
 
@@ -86,15 +88,18 @@ public class Tintolmarket {
                     OutputStream outputFile = new BufferedOutputStream(fileOutputStream);
 
                     try {
-                        filesize = (int) inStream.readObject();
-                        int totalsize = filesize;
+                        fileSize = (int) inStream.readObject();
+                        int totalsize = fileSize;
+                        System.out.println("file size: " + fileSize);
 
                         //receive file
                         while (totalsize > 0 ) {
                             if(totalsize >= 1024) {
                                 bytesRead = inStream.read(buffer,0,1024);
+                                System.out.println(bytesRead);
                             } else {
                                 bytesRead = inStream.read(buffer,0,totalsize);
+                                System.out.println(bytesRead);
                             }
                             outputFile.write(buffer,0,bytesRead);
                             totalsize -= bytesRead;

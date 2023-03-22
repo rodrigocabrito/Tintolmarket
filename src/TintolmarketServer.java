@@ -598,7 +598,9 @@ public class TintolmarketServer {
 
                     if (listaWines.isEmpty()) {
 
+                        System.out.println("Receivng file");
                         receiveFile(splitCommand[2]);
+                        System.out.println("File received");
                         listaWines.add(new Wine(splitCommand[1], splitCommand[2], new ArrayList<>()));
                         outStream.writeObject("Vinho adicionado com sucesso! \n");
 
@@ -614,7 +616,9 @@ public class TintolmarketServer {
 
                         if (!contains) {
 
+                            System.out.println("Receivng file");
                             receiveFile(splitCommand[2]);
+                            System.out.println("File received");
                             listaWines.add(new Wine(splitCommand[1], splitCommand[2], new ArrayList<>()));
                             outStream.writeObject("Vinho adicionado com sucesso! \n");
                         }
@@ -947,7 +951,7 @@ public class TintolmarketServer {
 
 
         private void receiveFile(String fileName) throws IOException {
-            int filesize;
+            int fileSize;
             int bytesRead;
             byte[] buffer = new byte[1024];
 
@@ -956,27 +960,36 @@ public class TintolmarketServer {
             OutputStream outputFile = new BufferedOutputStream(fileOutputStream);
 
             try {
-                filesize = (int) inStream.readObject();
-                int totalsize = filesize;
+                fileSize = (int) inStream.readObject();
+                int totalsize = fileSize;
+                System.out.println("tamanho do file: " + fileSize);
 
                 //receive file
                 while (totalsize > 0 ) {
+
+                    System.out.println("------------------------------------------------");
+                    System.out.println("por ler: " + totalsize);
                     if(totalsize >= 1024) {
-                        bytesRead = inStream.read(buffer,0,1024);
+                        bytesRead = inStream.read(buffer, 0, 1024);
+                        System.out.println("bytesRead: " + bytesRead + " -1");
                     } else {
-                        bytesRead = inStream.read(buffer,0,totalsize);
+
+                        bytesRead = inStream.read(buffer, 0, totalsize);
+                        System.out.println("bytesRead: " + bytesRead + " -2");
                     }
+
                     outputFile.write(buffer,0,bytesRead);
-                    totalsize -= bytesRead;
+					totalsize -= bytesRead;
+                    //System.out.println("bytesRead: " + bytesRead + " -3");
+                    System.out.println("totalSize: " + totalsize);
                 }
-                
+
+                outputFile.close();
+                fileOutputStream.close();
                 
             } catch (ClassNotFoundException e) {
                 e.printStackTrace();
             }
-
-            outputFile.close();
-            fileOutputStream.close();
         }
 
 
@@ -992,6 +1005,7 @@ public class TintolmarketServer {
             
             // enviar ficheiro
             while ((bytesRead = inputFile.read(buffer)) != -1) {
+                //System.out.println(bytesRead);
                 outStream.write(buffer, 0, bytesRead); //send file
             }
             
