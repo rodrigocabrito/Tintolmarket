@@ -19,11 +19,8 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-/*
- * TODO javadoc
- */
 
-/*
+/**
  * @authors:
  *      Rodrigo Cabrito 54455
  *      João Costa 54482
@@ -64,7 +61,6 @@ public class TintolmarketServer {
 
     public static void main(String[] args) throws IOException {
 
-        // update structures in server from .txt files
         updateServerMemory();
 
         try {
@@ -111,8 +107,9 @@ public class TintolmarketServer {
         //serverSocket.close();
     }
 
-    /*
-     * updates the structures in the server memory
+    /**
+     * Updates structures in server from .txt files
+     * @throws IOException
      */
     private static void updateServerMemory() throws IOException {
 
@@ -224,8 +221,10 @@ public class TintolmarketServer {
 
     }
 
-    /*
-     * for each line in balance.txt, create an Utilizador and add to listaUts
+    /**
+     * For each line in balance.txt, create an Utilizador and add to listaUts
+     * 
+     * @param br BufferedReader for balance.txt
      */
     private static void fillListaUts(BufferedReader br) throws NumberFormatException, IOException {
         String line;
@@ -237,8 +236,10 @@ public class TintolmarketServer {
         System.out.println("  listaUts updated");
     }
 
-    /*
-     * for each line in wines.txt, create a Wine and add to listaWines
+    /**
+     * For each line in wines.txt, create a Wine and add to listaWines
+     * 
+     * @param br BufferedReader for wines.txt
      */
     private static void fillListaWines(BufferedReader br) throws NumberFormatException, IOException {
         String line;
@@ -256,9 +257,11 @@ public class TintolmarketServer {
         System.out.println("  listaWines updated");
     }
 
-    /*
-     * for each line in forSale.txt, create a Sale and add to hashmap
-     * forSale(Utilizador,Sales)
+    /**
+     * For each line in forSale.txt, create a Sale and add to hashmap
+     * forSale<Utilizador,ArrayList<Sale>>
+     * 
+     * @param br BufferedReader for forSale.txt
      */
     private static void fillMapForSale(BufferedReader br) throws NumberFormatException, IOException {
         String line;
@@ -291,15 +294,16 @@ public class TintolmarketServer {
         System.out.println("  listaForSale updated");
     }
 
-    /*
-     * Classe que representa todos os argumentos de uma venda para alem do vendedor
-     * (Wine,price,quantity)
+    /**
+     * Classe que representa todos os argumentos de uma venda (excepto seller)
+     * <Wine,price,quantity>
      */
     protected static class Sale {
         private final Wine wine;
         private int value;
         private int quantity;
 
+        //construtor
         public Sale(Wine wine, int value, int quantity) {
             this.wine = wine;
             this.value = value;
@@ -327,7 +331,7 @@ public class TintolmarketServer {
         }
     }
 
-    /*
+    /**
      * classe para criar threads para vários clientes comunicarem com o servidor
      */
     static class clientHandlerThread extends Thread {
@@ -348,9 +352,9 @@ public class TintolmarketServer {
         @Override
         public void run() {
 
-            // streams
             try {
 
+                // streams
                 outStream = new ObjectOutputStream(socket.getOutputStream());
                 inStream = new ObjectInputStream(socket.getInputStream());
 
@@ -411,10 +415,10 @@ public class TintolmarketServer {
                 brAuth.close();
 
                 bwAuth = new BufferedWriter(new FileWriter(AUTHENTICATION_FILE));
-                // check if registered
+
                 if (newUser) {
 
-                    sb.append(clientID + ":" + passwd + "\n");
+                    sb.append(clientID + ":" + passwd + "\n"); // insert new user credentials
 
                     bwAuth.write(sb.toString());
                     bwAuth.close();
@@ -425,7 +429,7 @@ public class TintolmarketServer {
 
                 brAuth = new BufferedReader(new FileReader(AUTHENTICATION_FILE));
                 boolean found = false;
-                String lineForSplit = null;
+                String lineForSplit = null; // line with clientID user credentials
 
                 while (((line = brAuth.readLine()) != null) && !found) {
                     if (line.contains(clientID)) {
@@ -463,7 +467,7 @@ public class TintolmarketServer {
                             }
 
                         } else {
-                            process(command, outStream, listaUts, listaWines, forSale, bwChat);
+                            process(command, outStream, listaUts, listaWines, forSale);
                         }
                     }
 
@@ -477,6 +481,9 @@ public class TintolmarketServer {
             }
         }
 
+        /**
+         * For each user in listaUts, updates its balance in balance.txt file
+         */
         private static void updateBalance() {
             try {
 
@@ -495,6 +502,9 @@ public class TintolmarketServer {
             }
         }
 
+        /**
+         * Updates wines.txt file from listaWines
+         */
         private static void updateWines() {
             try {
 
@@ -520,6 +530,9 @@ public class TintolmarketServer {
             }
         }
 
+        /**
+         * Updates forSale.txt file from forSale HashMap
+         */
         private static void updateForSale() {
             try {
 
@@ -549,6 +562,12 @@ public class TintolmarketServer {
             }
         }
 
+        /**
+         * Updates the chat.txt file, appending the new interaction between users.
+         * 
+         * @param receiver
+         * @param msg
+         */
         private static void updateChat(String receiver, String msg) {
 
             try {
@@ -573,14 +592,23 @@ public class TintolmarketServer {
             }
         }
 
-        /*
+        /**
          * App functionalities
+         * 
+         * @param command is the command sent by client
+         * @param outStream is the stream to send data to client
+         * @param listaUts
+         * @param listaWines
+         * @param forSale
+         * 
+         * @throws IOException
          */
         private void process(String command, ObjectOutputStream outStream, ArrayList<Utilizador> listaUts,
-                ArrayList<Wine> listaWines, HashMap<Utilizador, ArrayList<Sale>> forSale, BufferedWriter bw)
+                ArrayList<Wine> listaWines, HashMap<Utilizador, ArrayList<Sale>> forSale)
                 throws IOException {
             String[] splitCommand = command.split(" ");
             boolean isValid = false;
+            boolean receiveFile = false;
 
             // add
             if (splitCommand[0].equals("add") || splitCommand[0].equals("a")) {
@@ -592,7 +620,7 @@ public class TintolmarketServer {
 
                     if (listaWines.isEmpty()) {
 
-                        receiveFile(splitCommand[2]);
+                        receiveFile = true;
                         listaWines.add(new Wine(splitCommand[1], splitCommand[2], new ArrayList<>()));
                         outStream.writeObject("Vinho adicionado com sucesso! \n");
 
@@ -608,11 +636,15 @@ public class TintolmarketServer {
 
                         if (!contains) {
 
-                            receiveFile(splitCommand[2]);
+                            receiveFile = true;
                             listaWines.add(new Wine(splitCommand[1], splitCommand[2], new ArrayList<>()));
                             outStream.writeObject("Vinho adicionado com sucesso! \n");
                         }
                     }
+                }
+                
+                if(receiveFile) {
+                    receiveFile(splitCommand[2]); //receive image
                 }
 
                 updateWines();
@@ -676,6 +708,7 @@ public class TintolmarketServer {
                                 }
                             }
 
+                            //if it was not a sale to update
                             if (!updated) {
 
                                 ArrayList<Sale> sales = forSale.get(ut);
@@ -714,8 +747,9 @@ public class TintolmarketServer {
                     }
 
                     if (!contains) {
+
                         outStream.writeObject("O vinho que deseja ver nao existe! \n");
-                    } else {
+                    } else {    
 
                         StringBuilder sb = new StringBuilder();
                         sb.append("Nome: " + w.getName() + "\n");
@@ -736,8 +770,7 @@ public class TintolmarketServer {
                                 }
                             }
                         }
-
-                        sendFile(splitCommand[1]);
+                        sendFile(w.getImage());
                         outStream.writeObject(sb.toString());
                     }
                 }
@@ -943,7 +976,13 @@ public class TintolmarketServer {
 
         }
 
-
+        /**
+         * Receives a file from the inStream and stores its content (bytes) in a file
+         * with {@code fileName} in serverFiles directory
+         * 
+         * @param fileName
+         * @throws IOException
+         */
         private void receiveFile(String fileName) throws IOException {
             int fileSize;
             int bytesRead;
@@ -979,7 +1018,12 @@ public class TintolmarketServer {
             }
         }
 
-
+        /**
+         * Sends a file from the serverFiles directory to the outStream
+         * 
+         * @param fileName
+         * @throws IOException
+         */
         private void sendFile(String fileName) throws IOException {
 
             File fileToSend = new File(SERVER_DIR + fileName);
@@ -1000,8 +1044,10 @@ public class TintolmarketServer {
             inputFile.close();
         }
 
-        /*
+        /**
          * prints a menu with some commands
+         * 
+         * @return a String with the menu
          */
         private String menu() {
 
