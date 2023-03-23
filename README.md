@@ -57,9 +57,9 @@ Contains image files of the wines added.
 ### Server memory (Local memory)
 
 There are structures used to operate in the data bases. They are updated from the data_bases directory .txt files when the server starts.
-- ArrayList`Utilizador` listaUts : Stores all registered users.
-- ArrayList`Wine` listaWines : Stores all added wines.
-- HashMap(Utilizador,ArrayList(Sale))` forSale : Stores all sales, mapping each list of sales to its seller (user).
+- `ArrayList<Utilizador>` listaUts : Stores all registered users.
+- `ArrayList<Wine>` listaWines : Stores all added wines.
+- `HashMap<Utilizador,ArrayList<Sale>>` forSale : Stores all sales, mapping each list of sales to its seller (user).
 
 ## Other classes
 
@@ -70,10 +70,17 @@ There are structures used to operate in the data bases. They are updated from th
 
 ## How to Run
 
+To compile and run server:
+
 ```bash
-git clone https://github.com/Nutlope/roomGPT
+java -jar TintolmarketServer.jar
 ```
 
+To compile and run client:
+
+```bash
+java -jar Tintolmarket.jar <serverAddress> <userID> [password]
+```
 
 ## 
 
