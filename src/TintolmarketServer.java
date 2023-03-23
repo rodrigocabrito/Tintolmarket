@@ -20,8 +20,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 /*
- * add enviar ficheiro da pasta clientFiles para server + server receber ficheiro e armazenar na pasta serverFiles
- * view receber ficheiro do server e armazenar na pasta clientFiles
+ * TODO javadoc
  */
 
 /*
@@ -51,13 +50,13 @@ public class TintolmarketServer {
     static BufferedReader brChat = null;
     static BufferedWriter bwChat = null;
 
-    //private static final String "authentication.txt" = "./data_bases/authentication.txt";
-    //private static final String "balance.txt" = "./data_bases/balance.txt";
-    //private static final String "wines.txt" = "./data_bases/wines.txt";
-    //private static final String "forSale.txt" = "./data_bases/forSale.txt";
-    //private static final String "chat.txt" = "./data_bases/chat.txt";
+    private static final String AUTHENTICATION_FILE = "./data_bases/authentication.txt";
+    private static final String BALANCE_FILE = "./data_bases/balance.txt";
+    private static final String WINES_FILE = "./data_bases/wines.txt";
+    private static final String FORSALE_FILE = "./data_bases/forSale.txt";
+    private static final String CHAT_FILE = "./data_bases/chat.txt";
 
-    //private static final String SERVER_DIR = "./serverFiles/"; TODO add this on receive and send file methods
+    private static final String SERVER_DIR = "./serverFiles/";
 
     private static ArrayList<Utilizador> listaUts = new ArrayList<>();
     private static ArrayList<Wine> listaWines = new ArrayList<>();
@@ -68,13 +67,12 @@ public class TintolmarketServer {
         // update structures in server from .txt files
         updateServerMemory();
 
-
         try {
-            BufferedReader br = new BufferedReader(new FileReader("chat.txt"));
+            BufferedReader br = new BufferedReader(new FileReader(CHAT_FILE));
             br.close();
         } catch (FileNotFoundException e) {
             // create chat.txt
-            FileWriter f = new FileWriter("chat.txt");
+            FileWriter f = new FileWriter(CHAT_FILE);
             f.close();
         }
 
@@ -122,20 +120,19 @@ public class TintolmarketServer {
 
         try {
 
-            brBal = new BufferedReader(new FileReader("balance.txt"));
+            brBal = new BufferedReader(new FileReader(BALANCE_FILE));
             fillListaUts(brBal);
             brBal.close();
 
         } catch (FileNotFoundException e) {
 
-            System.out.println("File not found, creating file...");
             // file doesn't exist, create it
             try {
 
-                FileWriter fw = new FileWriter("balance.txt");
+                FileWriter fw = new FileWriter(BALANCE_FILE);
                 fw.close();
 
-                brBal = new BufferedReader(new FileReader("balance.txt"));
+                brBal = new BufferedReader(new FileReader(BALANCE_FILE));
                 fillListaUts(brBal);
                 brBal.close();
 
@@ -158,20 +155,19 @@ public class TintolmarketServer {
         // update listaWines
         try {
 
-            brWine = new BufferedReader(new FileReader("wines.txt"));
+            brWine = new BufferedReader(new FileReader(WINES_FILE));
             fillListaWines(brWine);
             brWine.close();
 
         } catch (FileNotFoundException e) {
 
-            System.out.println("File not found, creating file...");
             // file doesn't exist, create it
             try {
 
-                FileWriter fw = new FileWriter("wines.txt");
+                FileWriter fw = new FileWriter(WINES_FILE);
                 fw.close();
 
-                brWine = new BufferedReader(new FileReader("wines.txt"));
+                brWine = new BufferedReader(new FileReader(WINES_FILE));
                 fillListaWines(brWine);
                 brWine.close();
 
@@ -194,20 +190,19 @@ public class TintolmarketServer {
         // update forSale HashMap
         try {
 
-            brSale = new BufferedReader(new FileReader("forSale.txt"));
+            brSale = new BufferedReader(new FileReader(FORSALE_FILE));
             fillMapForSale(brSale);
             brSale.close();
 
         } catch (FileNotFoundException e) {
 
-            System.out.println("File not found, creating file...");
             // file doesn't exist, create it
             try {
 
-                FileWriter fw = new FileWriter("forSale.txt");
+                FileWriter fw = new FileWriter(FORSALE_FILE);
                 fw.close();
 
-                brSale = new BufferedReader(new FileReader("forSale.txt"));
+                brSale = new BufferedReader(new FileReader(FORSALE_FILE));
                 fillMapForSale(brSale);
                 brSale.close();
 
@@ -239,7 +234,7 @@ public class TintolmarketServer {
             String[] lineSplit = line.split(";");
             listaUts.add(new Utilizador(lineSplit[0], Integer.parseInt(lineSplit[1])));
         }
-        System.out.println("listaUts updated");
+        System.out.println("  listaUts updated");
     }
 
     /*
@@ -258,7 +253,7 @@ public class TintolmarketServer {
 
             listaWines.add(new Wine(lineSplit[0], lineSplit[1], stars));
         }
-        System.out.println("listaWines updated");
+        System.out.println("  listaWines updated");
     }
 
     /*
@@ -293,7 +288,7 @@ public class TintolmarketServer {
             sales.add(new Sale(wSale, Integer.parseInt(splitLine[2]), Integer.parseInt(splitLine[3])));
             forSale.put(utSale, sales);
         }
-        System.out.println("listaForSale updated");
+        System.out.println("  listaForSale updated");
     }
 
     /*
@@ -391,18 +386,17 @@ public class TintolmarketServer {
 
                 try {
 
-                    brAuth = new BufferedReader(new FileReader("authentication.txt"));
+                    brAuth = new BufferedReader(new FileReader(AUTHENTICATION_FILE));
 
                 } catch (FileNotFoundException e) {
 
-                    System.out.println("File not found, creating file...");
                     // file doesn't exist, create it
                     try {
 
-                        FileWriter fw = new FileWriter("authentication.txt");
+                        FileWriter fw = new FileWriter(AUTHENTICATION_FILE);
                         fw.close();
 
-                        brAuth = new BufferedReader(new FileReader("authentication.txt"));
+                        brAuth = new BufferedReader(new FileReader(AUTHENTICATION_FILE));
 
                     } catch (Exception ex) {
                         ex.printStackTrace();
@@ -416,7 +410,7 @@ public class TintolmarketServer {
                 }
                 brAuth.close();
 
-                bwAuth = new BufferedWriter(new FileWriter("authentication.txt"));
+                bwAuth = new BufferedWriter(new FileWriter(AUTHENTICATION_FILE));
                 // check if registered
                 if (newUser) {
 
@@ -429,7 +423,7 @@ public class TintolmarketServer {
                     bwAuth.close();
                 }
 
-                brAuth = new BufferedReader(new FileReader("authentication.txt"));
+                brAuth = new BufferedReader(new FileReader(AUTHENTICATION_FILE));
                 boolean found = false;
                 String lineForSplit = null;
 
@@ -486,7 +480,7 @@ public class TintolmarketServer {
         private static void updateBalance() {
             try {
 
-                bwBal = new BufferedWriter(new FileWriter("balance.txt"));
+                bwBal = new BufferedWriter(new FileWriter(BALANCE_FILE));
 
                 if (!listaUts.isEmpty()) {
                     for (Utilizador u : listaUts) {
@@ -504,7 +498,7 @@ public class TintolmarketServer {
         private static void updateWines() {
             try {
 
-                bwWine = new BufferedWriter(new FileWriter("wines.txt"));
+                bwWine = new BufferedWriter(new FileWriter(WINES_FILE));
 
                 for (Wine wine : listaWines) {
 
@@ -529,14 +523,14 @@ public class TintolmarketServer {
         private static void updateForSale() {
             try {
 
-                bwSale = new BufferedWriter(new FileWriter("forSale.txt"));
+                bwSale = new BufferedWriter(new FileWriter(FORSALE_FILE));
 
                 if (forSale.size() != 0) {
                     for (Utilizador u : forSale.keySet()) {
 
                         ArrayList<Sale> sales = forSale.get(u);
 
-                        if (sales.size() != 0) {
+                        if (!sales.isEmpty()) {
                             for (Sale sale : sales) {
                                 if (sale.getQuantity() > 0) {
                                     // seller;wine;price;quantity
@@ -559,7 +553,7 @@ public class TintolmarketServer {
 
             try {
 
-                brChat = new BufferedReader(new FileReader("chat.txt"));
+                brChat = new BufferedReader(new FileReader(CHAT_FILE));
                 String line;
                 StringBuilder sb = new StringBuilder();
 
@@ -567,7 +561,7 @@ public class TintolmarketServer {
                     sb.append(line + "\n");
                 }
 
-                bwChat = new BufferedWriter(new FileWriter("chat.txt"));
+                bwChat = new BufferedWriter(new FileWriter(CHAT_FILE));
 
                 // sender;receiver;msg
                 bwChat.write(sb.toString());
@@ -598,9 +592,7 @@ public class TintolmarketServer {
 
                     if (listaWines.isEmpty()) {
 
-                        System.out.println("Receivng file");
                         receiveFile(splitCommand[2]);
-                        System.out.println("File received");
                         listaWines.add(new Wine(splitCommand[1], splitCommand[2], new ArrayList<>()));
                         outStream.writeObject("Vinho adicionado com sucesso! \n");
 
@@ -616,9 +608,7 @@ public class TintolmarketServer {
 
                         if (!contains) {
 
-                            System.out.println("Receivng file");
                             receiveFile(splitCommand[2]);
-                            System.out.println("File received");
                             listaWines.add(new Wine(splitCommand[1], splitCommand[2], new ArrayList<>()));
                             outStream.writeObject("Vinho adicionado com sucesso! \n");
                         }
@@ -636,7 +626,7 @@ public class TintolmarketServer {
 
                 if (splitCommand.length != 4) {
                     outStream.writeObject(
-                            "Comando invalido! A operacao sell necessita de 3 argumentos <name> <image> <quantity>.");
+                            "Comando invalido! A operacao sell necessita de 3 argumentos <name> <image> <quantity>. \n");
                 } else {
 
                     if (listaWines.isEmpty()) {
@@ -651,22 +641,23 @@ public class TintolmarketServer {
                         }
 
                         if (!contains) {
-                            outStream.writeObject("O vinho que deseja vender nao existe!");
+                            outStream.writeObject("O vinho que deseja vender nao existe! \n");
 
                         } else if (forSale.size() == 0) {
                             ArrayList<Sale> sales = new ArrayList<>();
                             sales.add(new Sale(wine, Integer.parseInt(splitCommand[2]),
                                     Integer.parseInt(splitCommand[3])));
                             forSale.put(ut, sales);
-                            outStream.writeObject("Vinho colocado a venda! 1");
+                            outStream.writeObject("Vinho colocado a venda! \n");
 
                         } else {
                             boolean updated = false;
-                            for (Utilizador u : forSale.keySet()) {
+                            for (HashMap.Entry<Utilizador,ArrayList<Sale>> entry : forSale.entrySet()) {
+                                Utilizador u = entry.getKey();
 
                                 if ((u.getUserID()).equals((ut.getUserID()))) {
 
-                                    ArrayList<Sale> sales = forSale.get(u);
+                                    ArrayList<Sale> sales = entry.getValue();
                                     for (Sale sale : sales) {
                                         if (sale.getWine().getName().equals(splitCommand[1])) { // caso o vinho ja
                                                                                                 // esteja a venda(mesmo
@@ -696,7 +687,7 @@ public class TintolmarketServer {
                                 sales.add(new Sale(wine, Integer.parseInt(splitCommand[2]),
                                         Integer.parseInt(splitCommand[3])));
                                 forSale.put(ut, sales);
-                                outStream.writeObject("Vinho colocado a venda! 2\n");
+                                outStream.writeObject("Vinho colocado a venda! \n");
                             }
                         }
                     }
@@ -712,7 +703,7 @@ public class TintolmarketServer {
                 Wine w = null;
 
                 if (splitCommand.length != 2) {
-                    outStream.writeObject("Comando invalido! A operacao view necessita de 1 argumento <wine>.");
+                    outStream.writeObject("Comando invalido! A operacao view necessita de 1 argumento <wine>. \n");
 
                 } else {
                     for (Wine wine : listaWines) {
@@ -731,8 +722,10 @@ public class TintolmarketServer {
                         sb.append("Imagem: " + w.getImage() + "\n");
                         sb.append("Classificacao media: " + w.getAvgRate() + "\n");
 
-                        for (Utilizador u : forSale.keySet()) {
-                            ArrayList<Sale> sales = forSale.get(u);
+                        for (HashMap.Entry<Utilizador,ArrayList<Sale>> entry : forSale.entrySet()) {
+                            Utilizador u = entry.getKey();
+                            ArrayList<Sale> sales = entry.getValue();
+                            
                             for (Sale sale : sales) {
                                 if (w.getName().equals(sale.getWine().getName()) && sale.getQuantity() > 0) {
 
@@ -757,10 +750,10 @@ public class TintolmarketServer {
 
                 if (splitCommand.length != 4) {
                     outStream.writeObject(
-                            "Comando invalido! A operacao buy necessita de 3 argumentos <wine> <seller> <quantity>.");
+                            "Comando invalido! A operacao buy necessita de 3 argumentos <wine> <seller> <quantity>. \n");
 
                 } else if (splitCommand[2].equals(ut.getUserID())) {
-                    outStream.writeObject("Comando invalido! <seller> nao pode ser o proprio!");
+                    outStream.writeObject("Comando invalido! <seller> nao pode ser o proprio! \n");
 
                 } else {
                     for (Wine wine : listaWines) {
@@ -774,12 +767,13 @@ public class TintolmarketServer {
                     } else {
                         boolean notFound = true;
                         boolean sold = false;// boolean to check if sale was already made
-                        for (Utilizador utSeller : forSale.keySet()) {
 
+                        for (HashMap.Entry<Utilizador,ArrayList<Sale>> entry : forSale.entrySet()) {
+                            Utilizador utSeller = entry.getKey();
+                            
                             if (utSeller.getUserID().equals(splitCommand[2]) && !sold) {// find seller
-
-                                ArrayList<Sale> sales = forSale.get(utSeller); // vendas encontradas a partir do seller
                                 
+                                ArrayList<Sale> sales = entry.getValue();
                                 Sale saleToRemove = null;
                                 for (Sale sale : sales) {
 
@@ -806,7 +800,7 @@ public class TintolmarketServer {
                                                                                                             // dinheiro
                                             sold = true;
 
-                                            outStream.writeObject("Compra realizada com sucesso! \n");// yey
+                                            outStream.writeObject("Compra realizada com sucesso! \n");
 
                                             // remover venda com quantidade 0
                                             if (sale.getQuantity() == 0) {
@@ -820,7 +814,7 @@ public class TintolmarketServer {
                         }
 
                         if (notFound) {
-                            outStream.writeObject("O vinho indicado nao se encontra a venda!");
+                            outStream.writeObject("O vinho indicado nao se encontra a venda! \n");
                         }
                     }
                 }
@@ -841,7 +835,7 @@ public class TintolmarketServer {
                 boolean contains = false;
                 if (splitCommand.length != 3) {
                     outStream.writeObject(
-                            "Comando invalido! A operacao classify necessita de 2 argumentos <wine> <stars>.");
+                            "Comando invalido! A operacao classify necessita de 2 argumentos <wine> <stars>. \n");
 
                 } else {
                     for (Wine wine : listaWines) {
@@ -867,7 +861,7 @@ public class TintolmarketServer {
                 StringBuilder message = new StringBuilder();
 
                 if (splitCommand[1].equals(ut.getUserID())) {
-                    outStream.writeObject("Comando invalido! O <receiver> nao pode ser o proprio!");
+                    outStream.writeObject("Comando invalido! O <receiver> nao pode ser o proprio! \n");
 
                 } else {
                     for (Utilizador u : listaUts) {
@@ -887,7 +881,7 @@ public class TintolmarketServer {
                             }
 
                             updateChat(splitCommand[1], message.toString());
-                            outStream.writeObject("Mensagem enviada com sucesso!");
+                            outStream.writeObject("Mensagem enviada com sucesso! \n");
 
                         } catch (Exception e) {
                             outStream.writeObject("Erro no envio da mensagem! \n");
@@ -902,12 +896,12 @@ public class TintolmarketServer {
                 isValid = true;
 
                 if (splitCommand.length != 1) {
-                    outStream.writeObject("Comando invalido! A operacao read nao necessita de argumentos.");
+                    outStream.writeObject("Comando invalido! A operacao read nao necessita de argumentos. \n");
 
                 } else {
                     try {
 
-                        brChat = new BufferedReader(new FileReader("chat.txt"));
+                        brChat = new BufferedReader(new FileReader(CHAT_FILE));
                         String line;
                         boolean empty = true;
                         StringBuilder serverChat = new StringBuilder();
@@ -928,11 +922,11 @@ public class TintolmarketServer {
                         }
 
                         if (empty) {
-                            outStream.writeObject("Nao tem mensagens por ler!");
+                            outStream.writeObject("Nao tem mensagens por ler! \n");
 
                         } else {
                             outStream.writeObject(message);
-                            bwChat = new BufferedWriter(new FileWriter("chat.txt"));
+                            bwChat = new BufferedWriter(new FileWriter(CHAT_FILE));
                             bwChat.write(serverChat.toString());
                             bwChat.close();
                         }
@@ -955,33 +949,26 @@ public class TintolmarketServer {
             int bytesRead;
             byte[] buffer = new byte[1024];
 
-            File f = new File(fileName);
+            File f = new File(SERVER_DIR + fileName);
             FileOutputStream fileOutputStream = new FileOutputStream(f);
             OutputStream outputFile = new BufferedOutputStream(fileOutputStream);
 
             try {
                 fileSize = (int) inStream.readObject();
                 int totalsize = fileSize;
-                System.out.println("tamanho do file: " + fileSize);
 
                 //receive file
                 while (totalsize > 0 ) {
 
-                    System.out.println("------------------------------------------------");
-                    System.out.println("por ler: " + totalsize);
                     if(totalsize >= 1024) {
                         bytesRead = inStream.read(buffer, 0, 1024);
-                        System.out.println("bytesRead: " + bytesRead + " -1");
                     } else {
-
                         bytesRead = inStream.read(buffer, 0, totalsize);
-                        System.out.println("bytesRead: " + bytesRead + " -2");
                     }
 
                     outputFile.write(buffer,0,bytesRead);
-					totalsize -= bytesRead;
-                    //System.out.println("bytesRead: " + bytesRead + " -3");
-                    System.out.println("totalSize: " + totalsize);
+					totalsize -= bytesRead;        
+                    outputFile.flush();
                 }
 
                 outputFile.close();
@@ -995,7 +982,7 @@ public class TintolmarketServer {
 
         private void sendFile(String fileName) throws IOException {
 
-            File fileToSend = new File(fileName);
+            File fileToSend = new File(SERVER_DIR + fileName);
             FileInputStream fileInputStream = new FileInputStream(fileToSend);
             InputStream inputFile = new BufferedInputStream(fileInputStream);
         
@@ -1005,11 +992,12 @@ public class TintolmarketServer {
             
             // enviar ficheiro
             while ((bytesRead = inputFile.read(buffer)) != -1) {
-                //System.out.println(bytesRead);
+
                 outStream.write(buffer, 0, bytesRead); //send file
+                outStream.flush();
             }
             
-            fileInputStream.close();
+            inputFile.close();
         }
 
         /*
@@ -1025,7 +1013,7 @@ public class TintolmarketServer {
             sb.append(" -> view <wine>\n");
             sb.append(" -> buy <wine> <seller> <quantity>\n");
             sb.append(" -> wallet\n");
-            sb.append(" -> classify <wine> <stars>\n");
+            sb.append(" -> classify <wine> <star>\n");
             sb.append(" -> talk <user> <message>\n");
             sb.append(" -> read\n");
             sb.append(" -> exit\n");
