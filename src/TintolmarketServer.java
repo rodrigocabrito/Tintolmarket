@@ -443,6 +443,8 @@ public class TintolmarketServer {
                 String[] splitLine = lineForSplit.split(":");
                 if (splitLine[1].equals(passwd)) {
 
+                    outStream.writeObject("Acesso concedido! \n");
+
                     updateBalance();
 
                     String command;
@@ -472,7 +474,7 @@ public class TintolmarketServer {
                     }
 
                 } else {
-                    System.err.println("Username ou password incorretos!");
+                    outStream.writeObject("Username ou password incorretos! A fechar app... \n");
                     System.exit(-2);
                 }
 

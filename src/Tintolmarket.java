@@ -37,19 +37,32 @@ public class Tintolmarket {
                 clientSocket = new Socket(ipPort[0],Integer.parseInt(ipPort[1]));
             }
 
+            String passwd;
+            String clientID = args[1];
+            Scanner sc = new Scanner(System.in);
+            
+            if (args.length == 3) {
+                passwd = args[2];
+            }else {
+                System.out.print("Insira a sua password: ");
+                passwd = sc.nextLine();
+            }
+
             //streams
             ObjectInputStream inStream = new ObjectInputStream(clientSocket.getInputStream());
             ObjectOutputStream outStream = new ObjectOutputStream(clientSocket.getOutputStream());
 
             //authentication
-            outStream.writeObject(args[1]);
-            outStream.writeObject(args[2]);
+            outStream.writeObject(clientID);
+            outStream.writeObject(passwd);
+
+            //authenticated/not authenticated
+            System.out.println("\n" + (String) inStream.readObject());
 
             while(true) {
 
                 //print menu
                 System.out.print(inStream.readObject());
-                Scanner sc = new Scanner(System.in);
                 
                 // get command from system in
                 String command = sc.nextLine();
