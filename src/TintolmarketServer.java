@@ -19,6 +19,11 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.HashMap;
 
+import javax.net.ServerSocketFactory;
+import javax.net.ssl.SSLServerSocket;
+import javax.net.ssl.SSLServerSocketFactory;
+import javax.net.ssl.SSLSocket;
+
 
 /**
  * @authors:
@@ -80,9 +85,15 @@ public class TintolmarketServer {
 
         ServerSocket serverSocket = null;
 
+        //System.setProperty("javax.net.ssl.keyStore", "keystore.server");
+        //System.setProperty("javax.net.ssl.keyStorePassword", "password");
+        //ServerSocketFactory ssf = SSLServerSocketFactory.getDefault( );
+        
         try {
 
             serverSocket = new ServerSocket(port);
+
+            //SSLServerSocket ss = (SSLServerSocket) ssf.createServerSocket(port);
 
         } catch (IOException e) {
             System.err.println(e.getMessage());
@@ -94,11 +105,19 @@ public class TintolmarketServer {
             Socket clientSocket;
             clientHandlerThread clientThread = null;
 
+            //SSLSocket clientSocketSSL;
+            //clientHandlerThread clientSSLThread = null;
+
             try {
 
                 clientSocket = serverSocket.accept();
                 clientThread = new clientHandlerThread(clientSocket);
                 clientThread.start();
+
+                //clientSocketSSL = (SSLSocket) serverSocket.accept();
+                //clientSSLThread = new clientHandlerThread(clientSocketSSL);
+                //clientSSLThread.start();
+
             } catch (IOException e) {
                 e.printStackTrace();
 

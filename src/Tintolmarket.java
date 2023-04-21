@@ -13,6 +13,12 @@ import java.io.OutputStream;
 import java.net.Socket;
 import java.util.Scanner;
 
+import javax.net.SocketFactory;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
+import javax.security.cert.X509Certificate;
+
 /*
  * @authors:
  *      Rodrigo Cabrito 54455
@@ -31,11 +37,33 @@ public class Tintolmarket {
             Socket clientSocket = null;
             String[] ipPort = args[0].split(":");
 
+            //System.setProperty("javax.net.ssl.trustStore", "truststore.client");
+            //System.setProperty("javax.net.ssl.trustStorePassword", "password");
+            //SocketFactory socketFactory = SSLSocketFactory.getDefault();
+            //SSLSocket clientSocketSSL = null;
+
             if (ipPort.length == 1) {
-                clientSocket = new Socket(args[0],12345);
+                clientSocket = new Socket(args[0], 12345);
+                //clientSocketSSL = (SSLSocket) socketFactory.createSocket(args[0], 12345);
             } else {
-                clientSocket = new Socket(ipPort[0],Integer.parseInt(ipPort[1]));
+                clientSocket = new Socket(ipPort[0], Integer.parseInt(ipPort[1]));
+                //clientSocketSSL = (SSLSocket) socketFactory.createSocket(ipPort[0], Integer.parseInt(ipPort[1]));
             }
+
+            /*
+            SSLSession session = clientSocketSSL.getSession();
+            String host = session.getPeerHost();
+            X509Certificate[] certs = session.getPeerCertificateChain( );
+            String dn = certs[0].getSubjectDN().getName();
+            X500Name name = new X500Name(dn); // X500Name é uma classe vossa
+            
+            if (!host.equals(name.getCN())) {
+                System.err.println("Expected " + host + " and got " + name.getCN());
+            }
+            */
+            
+            //TODO tratar os outros args[]
+            
 
             String passwd;
             String clientID = args[1];
@@ -51,6 +79,9 @@ public class Tintolmarket {
             //streams
             ObjectInputStream inStream = new ObjectInputStream(clientSocket.getInputStream());
             ObjectOutputStream outStream = new ObjectOutputStream(clientSocket.getOutputStream());
+
+            //ObjectInputStream inStream = new ObjectInputStream(clientSocketSSL.getInputStream());
+            //ObjectOutputStream outStream = new ObjectOutputStream(clientSocketSSL.getOutputStream());
 
             //authentication
             outStream.writeObject(clientID);
