@@ -1,28 +1,23 @@
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.security.*;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+import java.security.spec.InvalidKeySpecException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Random;
 
+import javax.crypto.*;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
 import javax.net.ServerSocketFactory;
-import javax.net.ssl.SSLServerSocket;
-import javax.net.ssl.SSLServerSocketFactory;
-import javax.net.ssl.SSLSocket;
+import javax.net.ssl.*;
 
 
 /**
@@ -32,68 +27,113 @@ import javax.net.ssl.SSLSocket;
  *      João Fraga 44837
  */
 
+// TODO adicionar streams de cifras juntamente com as streams de leitura e escrita
+// TODO decidir se é para cifrar todos os ficheiros ou só authentication
+
 public class TintolmarketServer {
 
-    private static int port;
-
-    // balance.txt
+    // balance
     static BufferedReader brBal = null;
     static BufferedWriter bwBal = null;
 
-    // wines.txt
+    // wines
     static BufferedReader brWine = null;
     static BufferedWriter bwWine = null;
 
-    // forSale.txt
+    // forSale
     static BufferedReader brSale = null;
     static BufferedWriter bwSale = null;
 
-    // chat.txt
+    // chat
     static BufferedReader brChat = null;
     static BufferedWriter bwChat = null;
 
-    private static final String AUTHENTICATION_FILE = "./data_bases/authentication.txt";
-    private static final String BALANCE_FILE = "./data_bases/balance.txt";
-    private static final String WINES_FILE = "./data_bases/wines.txt";
-    private static final String FORSALE_FILE = "./data_bases/forSale.txt";
-    private static final String CHAT_FILE = "./data_bases/chat.txt";
+    // file paths
+
+    private static final String AUTHENTICATION_FILE_TXT = "./data_bases/authentication.txt";
+    private static final String AUTHENTICATION_FILE_CIF = "./ciphers/authentication.cif";
+    private static final String AUTHENTICATION_FILE_KEY = "./keys/authentication.key";
+    private static final String BALANCE_FILE_TXT = "./data_bases/balance.txt";
+    private static final String BALANCE_FILE_CIF = "./ciphers/balance.cif";
+    private static final String BALANCE_FILE_KEY = "./keys/balance.key";
+    private static final String WINES_FILE_TXT = "./data_bases/wines.txt";
+    private static final String WINES_FILE_CIF = "./ciphers/wines.cif";
+    private static final String WINES_FILE_KEY = "./keys/wines.key";
+    private static final String FORSALE_FILE_TXT = "./data_bases/forSale.txt";
+    private static final String FORSALE_FILE_CIF = "./ciphers/forSale.cif";
+    private static final String FORSALE_FILE_KEY = "./keys/forSale.key";
+    private static final String CHAT_FILE_TXT = "./data_bases/chat.txt";
+    private static final String CHAT_FILE_CIF = "./ciphers/chat.cif";
+    private static final String CHAT_FILE_KEY = "./keys/chat.key";
 
     private static final String SERVER_DIR = "./serverFiles/";
+    private static final String SERVER_KEY_STORE_DIR = "./keystores/";
 
-    private static ArrayList<Utilizador> listaUts = new ArrayList<>();
-    private static ArrayList<Wine> listaWines = new ArrayList<>();
-    private static HashMap<Utilizador, ArrayList<Sale>> forSale = new HashMap<>();
+    private static final ArrayList<Utilizador> listaUts = new ArrayList<>();
+    private static final ArrayList<Wine> listaWines = new ArrayList<>();
+    private static final HashMap<Utilizador, ArrayList<Sale>> forSale = new HashMap<>();
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, InvalidKeySpecException, NoSuchAlgorithmException,
+            InvalidKeyException, NoSuchPaddingException, KeyStoreException, CertificateException,
+            UnrecoverableKeyException, KeyManagementException {
+
+        int port = Integer.parseInt(args[0]);
+        String password = args[1];
+        String keyStorePath = args[2];
+        String keyStorePassword = args[3];
+
+        String truststorePath = SERVER_KEY_STORE_DIR + "mytruststore.jks";
+        char[] truststorePassword = "your_truststore_password_here".toCharArray();
+
+        // create keystore
+        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        keyStore.load(new FileInputStream(keyStorePath), keyStorePassword.toCharArray());
+
+        // Create a TrustStore containing the client's trusted certificates (if needed)
+        KeyStore trustStore = KeyStore.getInstance("JKS");
+        trustStore.load(new FileInputStream("client.truststore"), truststorePassword);
+
+        // Create an SSLContext using the KeyManager and TrustManager obtained from the KeyStore and TrustStore, respectively
+        KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
+        keyManagerFactory.init(keyStore, "key_password".toCharArray());
+
+        TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance("SunX509");
+        trustManagerFactory.init(trustStore);
+
+        SSLContext sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), new SecureRandom());
+
+        // TODO verificar salt e iterationCount param da funcao PBEKeySpec (20)
+        // Generate the key based on the password passeed by args[1]
+        byte[] salt = { (byte) 0xc9, (byte) 0x36, (byte) 0x78, (byte) 0x99, (byte) 0x52, (byte) 0x3e, (byte) 0xea, (byte) 0xf2 };
+        PBEKeySpec keySpec = new PBEKeySpec(password.toCharArray(), salt, 20); // passw, salt, iterations
+        SecretKeyFactory kf = SecretKeyFactory.getInstance("PBEWithHmacSHA256AndAES_128");
+        SecretKey key = kf.generateSecret(keySpec);
+
+        Cipher cipher = Cipher.getInstance("AES");
+        cipher.init(Cipher.ENCRYPT_MODE, key);
 
         updateServerMemory();
 
         try {
-            BufferedReader br = new BufferedReader(new FileReader(CHAT_FILE));
+            BufferedReader br = new BufferedReader(new FileReader(CHAT_FILE_TXT));
+
             br.close();
         } catch (FileNotFoundException e) {
             // create chat.txt
-            FileWriter f = new FileWriter(CHAT_FILE);
+            FileWriter f = new FileWriter(CHAT_FILE_TXT);
             f.close();
         }
 
-        if (args.length == 0) {
-            port = 12345;
-        } else {
-            port = Integer.parseInt(args[0]);
-        }
+        System.setProperty("javax.net.ssl.keyStore", keyStorePath);
+        System.setProperty("javax.net.ssl.keyStorePassword", password);
 
-        ServerSocket serverSocket = null;
-
-        //System.setProperty("javax.net.ssl.keyStore", "keystore.server");
-        //System.setProperty("javax.net.ssl.keyStorePassword", "password");
-        //ServerSocketFactory ssf = SSLServerSocketFactory.getDefault( );
+        SSLServerSocket serverSocket = null;
+        ServerSocketFactory ssf = SSLServerSocketFactory.getDefault();
         
         try {
 
-            serverSocket = new ServerSocket(port);
-
-            //SSLServerSocket ss = (SSLServerSocket) ssf.createServerSocket(port);
+            serverSocket = (SSLServerSocket) ssf.createServerSocket(port);
 
         } catch (IOException e) {
             System.err.println(e.getMessage());
@@ -102,25 +142,23 @@ public class TintolmarketServer {
 
         while (true) {
 
-            Socket clientSocket;
-            clientHandlerThread clientThread = null;
-
-            //SSLSocket clientSocketSSL;
-            //clientHandlerThread clientSSLThread = null;
+            SSLSocket clientSocketSSL;
+            clientHandlerThread clientSSLThread = null;
 
             try {
 
-                clientSocket = serverSocket.accept();
-                clientThread = new clientHandlerThread(clientSocket);
-                clientThread.start();
+                clientSocketSSL = (SSLSocket) serverSocket.accept();
 
-                //clientSocketSSL = (SSLSocket) serverSocket.accept();
-                //clientSSLThread = new clientHandlerThread(clientSocketSSL);
-                //clientSSLThread.start();
+                SSLEngine sslEngine = sslContext.createSSLEngine();
+                sslEngine.setUseClientMode(false);
+                sslEngine.beginHandshake();
+                SSLSession sslSession = sslEngine.getSession();
+
+                clientSSLThread = new clientHandlerThread(clientSocketSSL, cipher, key);
+                clientSSLThread.start();
 
             } catch (IOException e) {
                 e.printStackTrace();
-
             }
         }
         //serverSocket.close();
@@ -130,13 +168,14 @@ public class TintolmarketServer {
      * Updates structures in server from .txt files
      * @throws IOException
      */
-    private static void updateServerMemory() throws IOException {
+    private static void updateServerMemory() throws IOException, NoSuchAlgorithmException {
 
         // update listaUts
 
         try {
 
-            brBal = new BufferedReader(new FileReader(BALANCE_FILE));
+            brBal = new BufferedReader(new FileReader(BALANCE_FILE_TXT));
+
             fillListaUts(brBal);
             brBal.close();
 
@@ -145,10 +184,11 @@ public class TintolmarketServer {
             // file doesn't exist, create it
             try {
 
-                FileWriter fw = new FileWriter(BALANCE_FILE);
+                FileWriter fw = new FileWriter(BALANCE_FILE_TXT);
                 fw.close();
 
-                brBal = new BufferedReader(new FileReader(BALANCE_FILE));
+                brBal = new BufferedReader(new FileReader(BALANCE_FILE_TXT));
+
                 fillListaUts(brBal);
                 brBal.close();
 
@@ -171,8 +211,9 @@ public class TintolmarketServer {
         // update listaWines
         try {
 
-            brWine = new BufferedReader(new FileReader(WINES_FILE));
-            fillListaWines(brWine);
+            brWine = new BufferedReader(new FileReader(WINES_FILE_TXT));
+
+            fillListaWines(brWine); // TODO swap for new streams
             brWine.close();
 
         } catch (FileNotFoundException e) {
@@ -180,10 +221,10 @@ public class TintolmarketServer {
             // file doesn't exist, create it
             try {
 
-                FileWriter fw = new FileWriter(WINES_FILE);
+                FileWriter fw = new FileWriter(WINES_FILE_TXT);
                 fw.close();
 
-                brWine = new BufferedReader(new FileReader(WINES_FILE));
+                brWine = new BufferedReader(new FileReader(WINES_FILE_TXT));
                 fillListaWines(brWine);
                 brWine.close();
 
@@ -206,7 +247,7 @@ public class TintolmarketServer {
         // update forSale HashMap
         try {
 
-            brSale = new BufferedReader(new FileReader(FORSALE_FILE));
+            brSale = new BufferedReader(new FileReader(FORSALE_FILE_TXT));
             fillMapForSale(brSale);
             brSale.close();
 
@@ -215,11 +256,11 @@ public class TintolmarketServer {
             // file doesn't exist, create it
             try {
 
-                FileWriter fw = new FileWriter(FORSALE_FILE);
+                FileWriter fw = new FileWriter(FORSALE_FILE_TXT);
                 fw.close();
 
-                brSale = new BufferedReader(new FileReader(FORSALE_FILE));
-                fillMapForSale(brSale);
+                brSale = new BufferedReader(new FileReader(FORSALE_FILE_TXT));
+                fillMapForSale(brSale); // TODO swap for new streams
                 brSale.close();
 
             } catch (IOException ex) {
@@ -245,13 +286,20 @@ public class TintolmarketServer {
      * 
      * @param br BufferedReader for balance.txt
      */
-    private static void fillListaUts(BufferedReader br) throws NumberFormatException, IOException {
+    private static void fillListaUts(BufferedReader br) throws IOException, NoSuchAlgorithmException {
+        byte[] hash = digestFile(BALANCE_FILE_TXT);
+
         String line;
         while ((line = br.readLine()) != null) {
 
             String[] lineSplit = line.split(";");
             listaUts.add(new Utilizador(lineSplit[0], Integer.parseInt(lineSplit[1])));
         }
+
+        if (isCorrupted(BALANCE_FILE_TXT, hash)) {
+            System.out.println("  balance.txt file corrupted!");
+        }
+
         System.out.println("  listaUts updated");
     }
 
@@ -260,7 +308,9 @@ public class TintolmarketServer {
      * 
      * @param br BufferedReader for wines.txt
      */
-    private static void fillListaWines(BufferedReader br) throws NumberFormatException, IOException {
+    private static void fillListaWines(BufferedReader br) throws IOException, NoSuchAlgorithmException {
+        byte[] hash = digestFile(WINES_FILE_TXT);
+
         String line;
         while ((line = br.readLine()) != null) {
 
@@ -273,6 +323,10 @@ public class TintolmarketServer {
 
             listaWines.add(new Wine(lineSplit[0], lineSplit[1], stars));
         }
+        if (isCorrupted(WINES_FILE_TXT, hash)) {
+            System.out.println("  wines.txt file corrupted!");
+        }
+
         System.out.println("  listaWines updated");
     }
 
@@ -282,7 +336,9 @@ public class TintolmarketServer {
      * 
      * @param br BufferedReader for forSale.txt
      */
-    private static void fillMapForSale(BufferedReader br) throws NumberFormatException, IOException {
+    private static void fillMapForSale(BufferedReader br) throws IOException, NoSuchAlgorithmException {
+        byte[] hash = digestFile(WINES_FILE_TXT);
+
         String line;
         while ((line = br.readLine()) != null) {
             String[] splitLine = line.split(";");
@@ -310,11 +366,28 @@ public class TintolmarketServer {
             sales.add(new Sale(wSale, Integer.parseInt(splitLine[2]), Integer.parseInt(splitLine[3])));
             forSale.put(utSale, sales);
         }
+
+        if (isCorrupted(FORSALE_FILE_TXT, hash)) {
+            System.out.println("  forSale.txt file corrupted!");
+        }
+
         System.out.println("  listaForSale updated");
     }
 
+    private static boolean isCorrupted(String pathToFile, byte[] hashToCompare) throws NoSuchAlgorithmException, IOException {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] hash = digest.digest(Files.readAllBytes(Paths.get(pathToFile)));
+
+        return Arrays.equals(hashToCompare, hash);
+    }
+
+    private static byte[] digestFile(String pathToFile) throws NoSuchAlgorithmException, IOException {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        return digest.digest(Files.readAllBytes(Paths.get(pathToFile)));
+    }
+
     /**
-     * Classe que representa todos os argumentos de uma venda (excepto seller)
+     * Classe que representa todos os argumentos de uma venda (exceto seller)
      * <Wine,price,quantity>
      */
     protected static class Sale {
@@ -351,21 +424,37 @@ public class TintolmarketServer {
     }
 
     /**
-     * classe para criar threads para vários clientes comunicarem com o servidor
+     * Classe para criar threads para vários clientes comunicarem com o servidor
      */
     static class clientHandlerThread extends Thread {
 
-        private Socket socket;
+        private final SSLSocket sslSocket;
+        private final Cipher cipher;
+        private final SecretKey key;
         private static Utilizador ut = null;
 
-        private ObjectOutputStream outStream;
-        private ObjectInputStream inStream;
+        private static ObjectOutputStream outStream;
+        private static ObjectInputStream inStream;
 
-        private BufferedWriter bwAuth = null;
-        private BufferedReader brAuth = null;
+        private BufferedWriter bwAuthTxt = null;
+        private FileOutputStream fosAuthKey = null;
+        private FileInputStream fisAuthTxt = null;
+        private FileOutputStream fosAuthCif = null;
+        private CipherOutputStream cosAuth = null;
+        private ObjectOutputStream oos = null;
 
-        clientHandlerThread(Socket socket) {
-            this.socket = socket;
+        private BufferedReader brAuthTxt = null;
+        private FileInputStream fisAuthKey = null;
+        private FileOutputStream fosAuthTxt = null;
+        private FileInputStream fisAuthCif = null;
+        private CipherInputStream cisAuth = null;
+        private ObjectInputStream oisKey = null;
+
+
+        clientHandlerThread(SSLSocket sslSocket, Cipher cipher, SecretKey key) {
+            this.sslSocket = sslSocket;
+            this.cipher = cipher;
+            this.key = key;
         }
 
         @Override
@@ -374,12 +463,14 @@ public class TintolmarketServer {
             try {
 
                 // streams
-                outStream = new ObjectOutputStream(socket.getOutputStream());
-                inStream = new ObjectInputStream(socket.getInputStream());
+                outStream = new ObjectOutputStream(sslSocket.getOutputStream());
+                inStream = new ObjectInputStream(sslSocket.getInputStream());
 
                 String clientID = null;
                 String passwd = null;
                 boolean newUser = true;
+                Random random = new Random();
+                long nonce = random.nextLong() & 0xFFFFFFFFFFFFFFL;
 
                 try {
 
@@ -397,8 +488,46 @@ public class TintolmarketServer {
                     }
 
                     if (newUser) {
+                        // enviar nonce com flag de ut desconhecido
+                        outStream.writeObject(nonce + ":newUser");
+
+                        // receber nonce, assinatura, certificado e chave publica do certificado
+                        long nonceFromClient = (long) inStream.readObject();
+                        Signature signatureFromClient = (Signature) inStream.readObject();
+                        PublicKey publicKeyFromClient = (PublicKey) inStream.readObject();
+
+                        // verificar se nonce é o enviado e verificar assinatura com a chave publica
+                        // TODO como conseguir os bytes da assinatura para a verificação
+                        signatureFromClient.initVerify(publicKeyFromClient);
+                        byte[] signatureBytes = signatureFromClient.sign();
+                        boolean verifiedSignature = signatureFromClient.verify(signatureBytes);
+
+                        if ((nonceFromClient == nonce) && verifiedSignature) {
+                            outStream.writeObject("Registo e autenticacao bem sucedida! \n");
+                        } else {
+                            outStream.writeObject("Registo e autenticacao nao foi bem sucedida... \n");
+                        }
+
                         ut = new Utilizador(clientID, 200);
                         listaUts.add(ut);
+
+                    } else {
+                        outStream.writeObject(nonce);
+
+                        // receber assinatura do cliente e verificar com a
+                        // chave publica do users.txt desse cliente
+                        byte[] signedNonce = (byte[]) inStream.readObject();
+
+                        Signature verifier = Signature.getInstance("SHA256withRSA");
+                        //verifier.initVerify(publicKey);
+                        verifier.update(String.valueOf(nonce).getBytes());
+                        boolean validSignature = verifier.verify(signedNonce);
+
+                        if (!validSignature) {
+                            outStream.writeObject("Autenticacao inválida! \n");
+                        } else {
+                            outStream.writeObject("Autenticacao bem sucedida! \n");
+                        }
                     }
 
                 } catch (Exception e) {
@@ -409,17 +538,17 @@ public class TintolmarketServer {
 
                 try {
 
-                    brAuth = new BufferedReader(new FileReader(AUTHENTICATION_FILE));
+                    brAuthTxt = new BufferedReader(new FileReader(AUTHENTICATION_FILE_TXT));
 
                 } catch (FileNotFoundException e) {
 
                     // file doesn't exist, create it
                     try {
 
-                        FileWriter fw = new FileWriter(AUTHENTICATION_FILE);
+                        FileWriter fw = new FileWriter(AUTHENTICATION_FILE_TXT);
                         fw.close();
 
-                        brAuth = new BufferedReader(new FileReader(AUTHENTICATION_FILE));
+                        brAuthTxt = new BufferedReader(new FileReader(AUTHENTICATION_FILE_TXT));
 
                     } catch (Exception ex) {
                         ex.printStackTrace();
@@ -428,35 +557,81 @@ public class TintolmarketServer {
 
                 String line = null;
 
-                while (((line = brAuth.readLine()) != null)) {
+                while (((line = brAuthTxt.readLine()) != null)) {
                     sb.append(line + "\n");
                 }
-                brAuth.close();
+                brAuthTxt.close();
 
-                bwAuth = new BufferedWriter(new FileWriter(AUTHENTICATION_FILE));
+                bwAuthTxt = new BufferedWriter(new FileWriter(AUTHENTICATION_FILE_TXT));
 
                 if (newUser) {
-
                     sb.append(clientID + ":" + passwd + "\n"); // insert new user credentials
+                }
+                bwAuthTxt.write(sb.toString());
+                bwAuthTxt.close();
 
-                    bwAuth.write(sb.toString());
-                    bwAuth.close();
-                } else {
-                    bwAuth.write(sb.toString());
-                    bwAuth.close();
+                fisAuthTxt = new FileInputStream(AUTHENTICATION_FILE_TXT);
+                fosAuthCif = new FileOutputStream(AUTHENTICATION_FILE_CIF);
+                cosAuth = new CipherOutputStream(fosAuthCif, cipher);
+
+                byte[] buffer = new byte[16];
+                int bytesRead = fisAuthTxt.read(buffer);
+                while (bytesRead != -1) {
+                    cosAuth.write(buffer, 0, bytesRead);
+                    bytesRead = fisAuthTxt.read(buffer);
                 }
 
-                brAuth = new BufferedReader(new FileReader(AUTHENTICATION_FILE));
+                byte[] keyEncoded = key.getEncoded();
+
+                fosAuthKey = new FileOutputStream(AUTHENTICATION_FILE_KEY);
+                oos = new ObjectOutputStream(fosAuthKey);
+                oos.writeObject(keyEncoded);
+
+                oos.close();
+                fosAuthKey.close();
+
+                // decifrar
+                fisAuthKey = new FileInputStream(AUTHENTICATION_FILE_KEY);
+                oisKey = new ObjectInputStream(fisAuthKey);
+                byte[] keyEncoded2 = (byte[]) oisKey.readObject();
+
+                oisKey.close();
+
+                SecretKeySpec keySpec2 = new SecretKeySpec(keyEncoded2, "AES");
+                Cipher d = Cipher.getInstance("AES");
+                d.init(Cipher.DECRYPT_MODE, keySpec2);
+
+                fosAuthTxt = new FileOutputStream(AUTHENTICATION_FILE_TXT);
+                fisAuthCif = new FileInputStream(AUTHENTICATION_FILE_CIF);
+                cisAuth = new CipherInputStream(fisAuthCif, d);
+
+                byte[] buffer1 = new byte[16];
+                bytesRead = cisAuth.read(buffer1);
+                while (bytesRead != -1) {
+                    fosAuthTxt.write(buffer1, 0, bytesRead);
+                    bytesRead = cisAuth.read(buffer1);
+                }
+
+                byte[] hash = digestFile(AUTHENTICATION_FILE_TXT);
+
+                brAuthTxt = new BufferedReader(new FileReader(AUTHENTICATION_FILE_TXT));
+
                 boolean found = false;
                 String lineForSplit = null; // line with clientID user credentials
 
-                while (((line = brAuth.readLine()) != null) && !found) {
+                while (((line = brAuthTxt.readLine()) != null) && !found) {
                     if (line.contains(clientID)) {
                         lineForSplit = line;
                         found = true;
                     }
                 }
-                brAuth.close();
+                brAuthTxt.close();
+
+                if (isCorrupted(AUTHENTICATION_FILE_TXT, hash)) { //TODO add readObject()
+                    outStream.writeObject("Tudo ok com o ficheiro authentication.txt" + "\n");
+                } else {
+                    outStream.writeObject("Ficheiro authentication.txt corrupto! \n");
+                }
 
                 // authentication
                 String[] splitLine = lineForSplit.split(":");
@@ -483,12 +658,12 @@ public class TintolmarketServer {
                             }
                             if (inStream != null) {
                                 inStream.close();
-                                socket.close();
+                                sslSocket.close();
                                 exit = true;
                             }
 
                         } else {
-                            process(command, outStream, listaUts, listaWines, forSale);
+                            process(command, outStream);
                         }
                     }
 
@@ -508,7 +683,7 @@ public class TintolmarketServer {
         private static void updateBalance() {
             try {
 
-                bwBal = new BufferedWriter(new FileWriter(BALANCE_FILE));
+                bwBal = new BufferedWriter(new FileWriter(BALANCE_FILE_TXT));
 
                 if (!listaUts.isEmpty()) {
                     for (Utilizador u : listaUts) {
@@ -529,7 +704,7 @@ public class TintolmarketServer {
         private static void updateWines() {
             try {
 
-                bwWine = new BufferedWriter(new FileWriter(WINES_FILE));
+                bwWine = new BufferedWriter(new FileWriter(WINES_FILE_TXT));
 
                 for (Wine wine : listaWines) {
 
@@ -557,7 +732,7 @@ public class TintolmarketServer {
         private static void updateForSale() {
             try {
 
-                bwSale = new BufferedWriter(new FileWriter(FORSALE_FILE));
+                bwSale = new BufferedWriter(new FileWriter(FORSALE_FILE_TXT));
 
                 if (forSale.size() != 0) {
                     for (Utilizador u : forSale.keySet()) {
@@ -590,10 +765,11 @@ public class TintolmarketServer {
          * @param msg
          */
         private static void updateChat(String receiver, String msg) {
-
+            //TODO garantir confidencialidade entre chat de clientes
             try {
+                byte[] hash = digestFile(CHAT_FILE_TXT);
 
-                brChat = new BufferedReader(new FileReader(CHAT_FILE));
+                brChat = new BufferedReader(new FileReader(CHAT_FILE_TXT));
                 String line;
                 StringBuilder sb = new StringBuilder();
 
@@ -601,7 +777,13 @@ public class TintolmarketServer {
                     sb.append(line + "\n");
                 }
 
-                bwChat = new BufferedWriter(new FileWriter(CHAT_FILE));
+                if (isCorrupted(CHAT_FILE_TXT, hash)) { // TODO add readObject() in client
+                    outStream.writeObject("Tudo ok com o ficheiro chat.txt" + "\n");
+                } else {
+                    outStream.writeObject("Ficheiro chat.txt corrupto! \n");
+                }
+
+                bwChat = new BufferedWriter(new FileWriter(CHAT_FILE_TXT));
 
                 // sender;receiver;msg
                 bwChat.write(sb.toString());
@@ -615,17 +797,12 @@ public class TintolmarketServer {
 
         /**
          * App functionalities
-         * 
-         * @param command is the command sent by client
+         *
+         * @param command   is the command sent by client
          * @param outStream is the stream to send data to client
-         * @param listaUts
-         * @param listaWines
-         * @param forSale
-         * 
          * @throws IOException
          */
-        private void process(String command, ObjectOutputStream outStream, ArrayList<Utilizador> listaUts,
-                ArrayList<Wine> listaWines, HashMap<Utilizador, ArrayList<Sale>> forSale)
+        private void process(String command, ObjectOutputStream outStream)
                 throws IOException {
             String[] splitCommand = command.split(" ");
             boolean isValid = false;
@@ -639,15 +816,15 @@ public class TintolmarketServer {
                     outStream.writeObject("Comando invalido! A operacao add necessita de 2 argumentos <name> <image>.");
                 } else {
 
-                    if (listaWines.isEmpty()) {
+                    if (TintolmarketServer.listaWines.isEmpty()) {
 
                         receiveFile = true;
-                        listaWines.add(new Wine(splitCommand[1], splitCommand[2], new ArrayList<>()));
+                        TintolmarketServer.listaWines.add(new Wine(splitCommand[1], splitCommand[2], new ArrayList<>()));
                         outStream.writeObject("Vinho adicionado com sucesso! \n");
 
                     } else {
                         boolean contains = false;
-                        for (Wine w : listaWines) {
+                        for (Wine w : TintolmarketServer.listaWines) {
 
                             if (w.getName().equals(splitCommand[1])) {
                                 contains = true;
@@ -658,7 +835,7 @@ public class TintolmarketServer {
                         if (!contains) {
 
                             receiveFile = true;
-                            listaWines.add(new Wine(splitCommand[1], splitCommand[2], new ArrayList<>()));
+                            TintolmarketServer.listaWines.add(new Wine(splitCommand[1], splitCommand[2], new ArrayList<>()));
                             outStream.writeObject("Vinho adicionado com sucesso! \n");
                         }
                     }
@@ -682,11 +859,11 @@ public class TintolmarketServer {
                             "Comando invalido! A operacao sell necessita de 3 argumentos <name> <image> <quantity>. \n");
                 } else {
 
-                    if (listaWines.isEmpty()) {
+                    if (TintolmarketServer.listaWines.isEmpty()) {
                         outStream.writeObject("O vinho que deseja vender nao existe! \n");
 
                     } else {
-                        for (Wine w : listaWines) {
+                        for (Wine w : TintolmarketServer.listaWines) {
                             if (w.getName().equals(splitCommand[1]) && !contains) {
                                 wine = w;
                                 contains = true;
@@ -696,16 +873,16 @@ public class TintolmarketServer {
                         if (!contains) {
                             outStream.writeObject("O vinho que deseja vender nao existe! \n");
 
-                        } else if (forSale.size() == 0) {
+                        } else if (TintolmarketServer.forSale.size() == 0) {
                             ArrayList<Sale> sales = new ArrayList<>();
                             sales.add(new Sale(wine, Integer.parseInt(splitCommand[2]),
                                     Integer.parseInt(splitCommand[3])));
-                            forSale.put(ut, sales);
+                            TintolmarketServer.forSale.put(ut, sales);
                             outStream.writeObject("Vinho colocado a venda! \n");
 
                         } else {
                             boolean updated = false;
-                            for (HashMap.Entry<Utilizador,ArrayList<Sale>> entry : forSale.entrySet()) {
+                            for (HashMap.Entry<Utilizador,ArrayList<Sale>> entry : TintolmarketServer.forSale.entrySet()) {
                                 Utilizador u = entry.getKey();
 
                                 if ((u.getUserID()).equals((ut.getUserID()))) {
@@ -732,7 +909,7 @@ public class TintolmarketServer {
                             //if it was not a sale to update
                             if (!updated) {
 
-                                ArrayList<Sale> sales = forSale.get(ut);
+                                ArrayList<Sale> sales = TintolmarketServer.forSale.get(ut);
 
                                 if (sales == null) {
                                     sales = new ArrayList<>();
@@ -740,7 +917,7 @@ public class TintolmarketServer {
 
                                 sales.add(new Sale(wine, Integer.parseInt(splitCommand[2]),
                                         Integer.parseInt(splitCommand[3])));
-                                forSale.put(ut, sales);
+                                TintolmarketServer.forSale.put(ut, sales);
                                 outStream.writeObject("Vinho colocado a venda! \n");
                             }
                         }
@@ -760,7 +937,7 @@ public class TintolmarketServer {
                     outStream.writeObject("Comando invalido! A operacao view necessita de 1 argumento <wine>. \n");
 
                 } else {
-                    for (Wine wine : listaWines) {
+                    for (Wine wine : TintolmarketServer.listaWines) {
                         if (wine.getName().equals(splitCommand[1]) && !contains) {
                             contains = true;
                             w = wine;
@@ -777,7 +954,7 @@ public class TintolmarketServer {
                         sb.append("Imagem: " + w.getImage() + "\n");
                         sb.append("Classificacao media: " + w.getAvgRate() + "\n");
 
-                        for (HashMap.Entry<Utilizador,ArrayList<Sale>> entry : forSale.entrySet()) {
+                        for (HashMap.Entry<Utilizador,ArrayList<Sale>> entry : TintolmarketServer.forSale.entrySet()) {
                             Utilizador u = entry.getKey();
                             ArrayList<Sale> sales = entry.getValue();
                             
@@ -810,7 +987,7 @@ public class TintolmarketServer {
                     outStream.writeObject("Comando invalido! <seller> nao pode ser o proprio! \n");
 
                 } else {
-                    for (Wine wine : listaWines) {
+                    for (Wine wine : TintolmarketServer.listaWines) {
                         if (wine.getName().equals(splitCommand[1]) && !contains) {
                             contains = true;
                         }
@@ -822,7 +999,7 @@ public class TintolmarketServer {
                         boolean notFound = true;
                         boolean sold = false;// boolean to check if sale was already made
 
-                        for (HashMap.Entry<Utilizador,ArrayList<Sale>> entry : forSale.entrySet()) {
+                        for (HashMap.Entry<Utilizador,ArrayList<Sale>> entry : TintolmarketServer.forSale.entrySet()) {
                             Utilizador utSeller = entry.getKey();
                             
                             if (utSeller.getUserID().equals(splitCommand[2]) && !sold) {// find seller
@@ -892,7 +1069,7 @@ public class TintolmarketServer {
                             "Comando invalido! A operacao classify necessita de 2 argumentos <wine> <stars>. \n");
 
                 } else {
-                    for (Wine wine : listaWines) {
+                    for (Wine wine : TintolmarketServer.listaWines) {
                         if (wine.getName().equals(splitCommand[1]) && !contains) {
                             wine.classify(Integer.parseInt(splitCommand[2]));
                             contains = true;
@@ -918,7 +1095,7 @@ public class TintolmarketServer {
                     outStream.writeObject("Comando invalido! O <receiver> nao pode ser o proprio! \n");
 
                 } else {
-                    for (Utilizador u : listaUts) {
+                    for (Utilizador u : TintolmarketServer.listaUts) {
                         if (u.getUserID().equals(splitCommand[1]) && !contains) {
                             contains = true;
                         }
@@ -955,7 +1132,7 @@ public class TintolmarketServer {
                 } else {
                     try {
 
-                        brChat = new BufferedReader(new FileReader(CHAT_FILE));
+                        brChat = new BufferedReader(new FileReader(CHAT_FILE_TXT));
                         String line;
                         boolean empty = true;
                         StringBuilder serverChat = new StringBuilder();
@@ -980,7 +1157,7 @@ public class TintolmarketServer {
 
                         } else {
                             outStream.writeObject(message);
-                            bwChat = new BufferedWriter(new FileWriter(CHAT_FILE));
+                            bwChat = new BufferedWriter(new FileWriter(CHAT_FILE_TXT));
                             bwChat.write(serverChat.toString());
                             bwChat.close();
                         }
@@ -994,7 +1171,6 @@ public class TintolmarketServer {
             if (!isValid) {
                 outStream.writeObject(("Comando Inválido! Indique um dos comandos apresentados acima. \n"));
             }
-
         }
 
         /**
@@ -1071,22 +1247,18 @@ public class TintolmarketServer {
          * @return a String with the menu
          */
         private String menu() {
-
-            StringBuilder sb = new StringBuilder();
-
-            sb.append("-------------------------------------------\n");
-            sb.append(" -> add <wine> <image>\n");
-            sb.append(" -> sell <wine> <value> <quantity>\n");
-            sb.append(" -> view <wine>\n");
-            sb.append(" -> buy <wine> <seller> <quantity>\n");
-            sb.append(" -> wallet\n");
-            sb.append(" -> classify <wine> <star>\n");
-            sb.append(" -> talk <user> <message>\n");
-            sb.append(" -> read\n");
-            sb.append(" -> exit\n");
-            sb.append(" Selecione um comando: ");
-
-            return sb.toString();
+            return """
+                    -------------------------------------------
+                     -> add <wine> <image>
+                     -> sell <wine> <value> <quantity>
+                     -> view <wine>
+                     -> buy <wine> <seller> <quantity>
+                     -> wallet
+                     -> classify <wine> <star>
+                     -> talk <user> <message>
+                     -> read
+                     -> exit
+                     Selecione um comando:\s""";
         }
     }
 }
