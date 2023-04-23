@@ -1,16 +1,18 @@
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.Signature;
+import java.util.Arrays;
 import java.util.List;
 
 public class Block {
 
+    private String hash;
     private final long id;
     private long nrTransacoes;
     private List<Transacao> transacoes;
     private Signature assinatura;
-    private String hash;
 
 
     public Block(long id) {
@@ -18,7 +20,9 @@ public class Block {
         this.nrTransacoes = 0;
 
         if (id == 1) {
-            this.hash = "0000000000000000000";
+            this.hash = Arrays.toString(new byte[32]);
+        } else {
+            this.hash = null;
         }
     }
 
@@ -31,7 +35,7 @@ public class Block {
         String dataToHash = sb.toString() + assinatura.toString();
         String hash = null;
 
-        //TODO verificar metdo de fazer calculateHash
+        //TODO verificar metodo de fazer calculateHash
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] bytes = digest.digest(dataToHash.getBytes(StandardCharsets.UTF_8));
@@ -53,7 +57,42 @@ public class Block {
 
     public void closeBlock(Signature assinatura) {
         this.assinatura = assinatura;
-        this.hash = calculateHash();
+    }
+
+    public byte[] toByteArray() {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(bos);
+
+        try {
+            // Serialize the block data to the byte array
+            dos.writeLong(id);
+            dos.writeLong(nrTransacoes);
+            for (Transacao transacao : transacoes) {
+                dos.writeUTF(transacao.toString());
+            }
+            dos.writeUTF(assinatura.toString());
+            dos.writeUTF(hash);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return bos.toByteArray();
+    }
+
+    public static Block fromByteArray(byte[] data) throws IOException {
+        ByteArrayInputStream in = new ByteArrayInputStream(data);
+        ObjectInputStream ois = new ObjectInputStream(in);
+        Block block = null;
+        try {
+            block = (Block) ois.readObject();
+        } catch (ClassNotFoundException e) {
+            // Handle the exception
+        }
+        ois.close();
+        return block;
+    }
+
+    public boolean isBlockFull() {
+        return this.nrTransacoes == 5;
     }
 
     public void setHash(String hash) {
