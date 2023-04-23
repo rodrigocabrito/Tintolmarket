@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.*;
 import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.security.spec.InvalidKeySpecException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -55,15 +56,17 @@ public class TintolmarketServer {
     private static final String SERVER_FILES_DIR = "./serverFiles/";
     private static final String KEYSTORE_DIR = "./keystores/";
 
-    private static PublicKey publicKey = null;
-    private static PrivateKey privateKey = null;
+    private static PublicKey serverPublicKey = null;
+    private static PrivateKey serverPrivateKey = null;
+    private static Signature serverSignature = null;
+
+    private static final Blockchain blockchain = new Blockchain();
 
     private static final ArrayList<Utilizador> listaUts = new ArrayList<>();
     private static final ArrayList<Wine> listaWines = new ArrayList<>();
     private static final HashMap<Utilizador, ArrayList<Sale>> forSale = new HashMap<>();
 
-    public static void main(String[] args) throws IOException, InvalidKeySpecException, NoSuchAlgorithmException,
-            InvalidKeyException, NoSuchPaddingException, KeyStoreException, CertificateException, UnrecoverableKeyException {
+    public static void main(String[] args) throws Exception {
 
         int port = Integer.parseInt(args[0]);
         String password = args[1];
@@ -86,20 +89,25 @@ public class TintolmarketServer {
 
         // get self certificate and keys
         Certificate cert = (Certificate) keyStore.getCertificate(certificateAlias);
-        publicKey = cert.getPublicKey();
-        privateKey = (PrivateKey) keyStore.getKey(keyAlias, keyPassword.toCharArray());
+        serverPublicKey = cert.getPublicKey();
+        serverPrivateKey = (PrivateKey) keyStore.getKey(keyAlias, keyPassword.toCharArray());
+
+        serverSignature = Signature.getInstance("MD5withRSA");
+        serverSignature.initSign(serverPrivateKey);
 
         // TODO verificar salt e iterationCount param da funcao PBEKeySpec (20)
         // Generate the key based on the password passeed by args[1]
         byte[] salt = { (byte) 0xc9, (byte) 0x36, (byte) 0x78, (byte) 0x99, (byte) 0x52, (byte) 0x3e, (byte) 0xea, (byte) 0xf2 };
         PBEKeySpec keySpec = new PBEKeySpec(password.toCharArray(), salt, 20); // passw, salt, iterations
-        SecretKeyFactory kf = SecretKeyFactory.getInstance("PBEWithHmacSHA256AndAES_128");
+        SecretKeyFactory kf = SecretKeyFactory.getInstance("PBEWithHmacSHA256AndAES_128"); //TODO check isntance com enunciado
         SecretKey key = kf.generateSecret(keySpec);
 
         Cipher cipher = Cipher.getInstance("AES");
         cipher.init(Cipher.ENCRYPT_MODE, key);
 
         updateServerMemory();
+
+        verifyIntegrityBlockchain();
 
         try {
             BufferedReader br = new BufferedReader(new FileReader(CHAT_FILE_TXT));
@@ -142,6 +150,55 @@ public class TintolmarketServer {
             }
         }
         //serverSocket.close();
+    }
+
+    private static void verifyIntegrityBlockchain() throws Exception {
+        blockchain.loadBlocks();
+
+        if (blockchain.isChainValid()) {
+            System.out.println(" Blockchain valida!");
+        } else {
+            System.out.println(" Blockchain corrompida!");
+            System.exit(-1); // TODO exit
+        }
+
+        for (Block block : blockchain.getBlocks()) {
+            if (block.isBlockFull()) {
+                String data = block.getHash() + block.getId() + block.getNrTransacoes();
+                for (Transacao transacao : block.getTransacoes()) {
+                    data.concat(transacao.toString());
+                }
+                byte[] dataBytes = data.getBytes();
+                byte[] signature = sign(dataBytes, serverPrivateKey);
+                boolean validSignature = verify(dataBytes, signature, serverPublicKey);
+
+                if (validSignature) {
+                    System.out.println("Assinatura do bloco com id " + block.getId() + " eh valido");
+                } else {
+                    System.out.println("Assinatura do bloco com id " + block.getId() + " eh invalido");
+                }
+            }
+        }
+    }
+
+    public static byte[] sign(byte[] data, PrivateKey privateKey) throws Exception {
+        // Create the signature object
+        Signature signature = Signature.getInstance("MD5withRSA");
+        signature.initSign(privateKey);
+        signature.update(data);
+
+        // Generate the digital signature
+        return signature.sign();
+    }
+
+    public static boolean verify(byte[] data, byte[] signature, PublicKey publicKey) throws Exception {
+        // Create the signature object
+        Signature sig = Signature.getInstance("MD5withRSA");
+        sig.initVerify(publicKey);
+        sig.update(data);
+
+        // Verify the digital signature
+        return sig.verify(signature);
     }
 
     /**
@@ -408,7 +465,9 @@ public class TintolmarketServer {
         private final Cipher cipher;
         private final SecretKey key;
         private static Utilizador ut = null;
-        private static PublicKey publicKey = null;
+        private static PublicKey clientPublicKey = null;
+        private static PrivateKey clientPrivateKey= null;
+        private static Signature clientSignature = null;
 
         private static ObjectOutputStream outStream;
         private static ObjectInputStream inStream;
@@ -438,6 +497,8 @@ public class TintolmarketServer {
         public void run() {
 
             try {
+
+
 
                 SSLSession sslSession = sslSocket.getSession();
 
@@ -478,22 +539,22 @@ public class TintolmarketServer {
                         // enviar nonce com flag de ut desconhecido
                         outStream.writeObject(nonce + ":newUser");
 
-                        // receber nonce, assinatura, certificado e chave publica do certificado
+                        // receber nonce, assinatura e chave publica do certificado
                         long nonceFromClient = (long) inStream.readObject();
-                        Signature signatureFromClient = (Signature) inStream.readObject();
-                        PublicKey publicKeyFromClient = (PublicKey) inStream.readObject();
+                        clientSignature = (Signature) inStream.readObject();
+                        clientPublicKey = (PublicKey) inStream.readObject();
 
                         // verificar se nonce é o enviado e verificar assinatura com a chave publica
                         // TODO como conseguir os bytes da assinatura para a verificação
-                        signatureFromClient.initVerify(publicKeyFromClient);
-                        byte[] signatureBytes = signatureFromClient.sign();
-                        boolean verifiedSignature = signatureFromClient.verify(signatureBytes);
+                        clientSignature.initVerify(clientPublicKey);
+                        byte[] signatureBytes = clientSignature.sign();
+                        boolean verifiedSignature = clientSignature.verify(signatureBytes);
 
                         if ((nonceFromClient == nonce) && verifiedSignature) {
-                            publicKey = publicKeyFromClient;
                             outStream.writeObject("Registo e autenticacao bem sucedida! \n");
                         } else {
                             outStream.writeObject("Registo e autenticacao nao foi bem sucedida... \n");
+                            System.exit(-1);
                         }
 
                         ut = new Utilizador(userID, 200);
@@ -502,10 +563,38 @@ public class TintolmarketServer {
                     } else {
                         outStream.writeObject(nonce);
 
+                        brAuthTxt = new BufferedReader(new FileReader(AUTHENTICATION_FILE_TXT));
+                        String line;
+                        String keyStorePath = "";
+                        boolean done = false;
+
+                        while (((line = brAuthTxt.readLine()) != null) && !done) {
+                            if (line.contains(userID)) {
+                                String[] splitLine = line.split(":");
+                                keyStorePath = splitLine[1];
+                                done = true;
+                            }
+                        }
+                        brAuthTxt.close();
+
                         // receber assinatura do cliente e verificar com a
                         // chave publica do users.txt desse cliente
                         byte[] signedNonce = (byte[]) inStream.readObject();
 
+                        KeyStore keystore = KeyStore.getInstance("JKS");
+                        keystore.load(new FileInputStream(keyStorePath), null);
+
+                        KeyStore.Entry entry = keystore.getEntry(userID + "kp", null); //TODO verificar key alias
+                        KeyStore.PrivateKeyEntry privateKeyEntry = (KeyStore.PrivateKeyEntry) entry;
+                        clientPrivateKey = privateKeyEntry.getPrivateKey();
+
+                        Certificate[] chain = (Certificate[]) ((KeyStore.PrivateKeyEntry) entry).getCertificateChain();
+
+                        // Get the public key from the certificate from the keystore on users.txt
+                        X509Certificate cert = (X509Certificate) chain[0];
+                        PublicKey publicKey = cert.getPublicKey();
+
+                        // verificar a assinatura do cliente com a chave publica
                         Signature verifier = Signature.getInstance("SHA256withRSA");
                         verifier.initVerify(publicKey);
                         verifier.update(String.valueOf(nonce).getBytes());
@@ -751,7 +840,7 @@ public class TintolmarketServer {
          * @throws IOException
          */
         private void process(String command, ObjectOutputStream outStream)
-                throws IOException {
+                throws Exception {
             String[] splitCommand = command.split(" ");
             boolean isValid = false;
             boolean receiveFile = false;
@@ -831,12 +920,17 @@ public class TintolmarketServer {
                             Transacao tSell = new Transacao(wine.getName(), Integer.parseInt(splitCommand[3]),
                                     Integer.parseInt(splitCommand[2]), ut.getUserID(), TransacaoType.SELL);
 
-                            // TODO add blockchain
+                            // verificar assinatura pelo cliente
+                            clientSignature.update(tSell.toString().getBytes());
+                            byte[] signatureBytes = clientSignature.sign();
+                            boolean verifiedSignature = clientSignature.verify(signatureBytes);
 
-                            // verificar assinatura
-                            // byte[] dataBytes = hash + id + nrTransacoes + transacoes;
-                            // byte[] signature = sign(dataBytes, privateKey);
-                            // boolean isValid = verify(dataBytes, signature, publicKey);
+                            if (verifiedSignature) {
+                                blockchain.addTransacao(tSell, serverSignature);
+                                outStream.writeObject("Transacao processada com sucesso! \n");
+                            } else {
+                                outStream.writeObject("Assinatura inválida! Transacao nao processada! \n");
+                            }
 
                         } else {
                             boolean updated = false;
@@ -881,12 +975,17 @@ public class TintolmarketServer {
                                 Transacao tSell = new Transacao(wine.getName(), Integer.parseInt(splitCommand[3]),
                                         Integer.parseInt(splitCommand[2]), ut.getUserID(), TransacaoType.SELL);
 
-                                // TODO add blockchain
+                                // verificar assinatura pelo cliente
+                                clientSignature.update(tSell.toString().getBytes());
+                                byte[] signatureBytes = clientSignature.sign();
+                                boolean verifiedSignature = clientSignature.verify(signatureBytes);
 
-                                // verificar assinatura
-                                // byte[] dataBytes = hash + id + nrTransacoes + transacoes;
-                                // byte[] signature = sign(dataBytes, privateKey);
-                                // boolean isValid = verify(dataBytes, signature, publicKey);
+                                if (verifiedSignature) {
+                                    blockchain.addTransacao(tSell, serverSignature);
+                                    outStream.writeObject("Transacao processada com sucesso! \n");
+                                } else {
+                                    outStream.writeObject("Assinatura inválida! Transacao nao processada! \n");
+                                }
                             }
                         }
                     }
@@ -1004,20 +1103,17 @@ public class TintolmarketServer {
                                             Transacao tBuy = new Transacao(sale.getWine().getName(), Integer.parseInt(splitCommand[3]),
                                                     sale.getValue(), ut.getUserID(), TransacaoType.BUY);
 
-                                            //TODO add to blockchain
+                                            // verificar assinatura pelo cliente
+                                            clientSignature.update(tBuy.toString().getBytes());
+                                            byte[] signatureBytes = clientSignature.sign();
+                                            boolean verifiedSignature = clientSignature.verify(signatureBytes);
 
-                                            // verificar assinatura
-
-                                            // Signature assinatura = Signature.getInstance("MD5withRSA");
-                                            // assinatura.initSign(privateKey);
-
-
-                                            // byte[] dataBytes = hash + id + nrTransacoes + transacoes;
-                                            // byte[] signature = sign(dataBytes, privateKey);
-                                            // assinatura.update(signature);
-                                            // boolean isValid = verify(dataBytes, signature, publicKey);
-
-                                            // add assinatura ao bloco
+                                            if (verifiedSignature) {
+                                                blockchain.addTransacao(tBuy, serverSignature);
+                                                outStream.writeObject("Transacao processada com sucesso! \n");
+                                            } else {
+                                                outStream.writeObject("Assinatura inválida! Transacao nao processada! \n");
+                                            }
 
                                             // remover venda com quantidade 0
                                             if (sale.getQuantity() == 0) {
@@ -1149,6 +1245,25 @@ public class TintolmarketServer {
                     }
                 }
             }
+
+            if (splitCommand[0].equals("list") || splitCommand[0].equals("l")) {
+                isValid = true;
+
+                if (splitCommand.length != 1) {
+                    outStream.writeObject("Comando invalido! A operacao list nao necessita de argumentos. \n");
+
+                } else {
+                    StringBuilder sb = new StringBuilder();
+                    for (Block block : blockchain.getBlocks()) {
+                        for (Transacao transacao : block.getTransacoes()) {
+                            sb.append(transacao.toString() + "\n\n");
+                            sb.append("-------------------------------------- \n");
+                        }
+                    }
+                    outStream.writeObject(sb.toString());
+                }
+            }
+
             if (!isValid) {
                 outStream.writeObject(("Comando Inválido! Indique um dos comandos apresentados acima. \n"));
             }
@@ -1184,7 +1299,7 @@ public class TintolmarketServer {
                     }
 
                     outputFile.write(buffer,0,bytesRead);
-					totalsize -= bytesRead;        
+                    totalsize -= bytesRead;
                     outputFile.flush();
                 }
 
@@ -1221,26 +1336,6 @@ public class TintolmarketServer {
             inputFile.close();
         }
 
-        public static byte[] sign(byte[] data, PrivateKey privateKey) throws Exception {
-            // Create the signature object
-            Signature signature = Signature.getInstance("MD5withRSA");
-            signature.initSign(privateKey);
-            signature.update(data);
-
-            // Generate the digital signature
-            return signature.sign();
-        }
-
-        public static boolean verify(byte[] data, byte[] signature, PublicKey publicKey) throws Exception {
-            // Create the signature object
-            Signature sig = Signature.getInstance("MD5withRSA");
-            sig.initVerify(publicKey);
-            sig.update(data);
-
-            // Verify the digital signature
-            return sig.verify(signature);
-        }
-
         /**
          * prints a menu with some commands
          * 
@@ -1257,6 +1352,7 @@ public class TintolmarketServer {
                      -> classify <wine> <star>
                      -> talk <user> <message>
                      -> read
+                     -> list
                      -> exit
                      Selecione um comando:\s""";
         }
