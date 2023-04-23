@@ -1,18 +1,9 @@
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.FileReader;
-import java.io.InputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.Socket;
 import java.security.*;
 import java.security.cert.CertificateFactory;
+import java.util.Date;
 import java.util.Scanner;
 
 import javax.net.SocketFactory;
@@ -40,27 +31,38 @@ public class Tintolmarket {
             String keyStorePassword = args[3];
             String userID = args[4];
 
-            // keystore
+            String certificateAlias = "";
+            String keyAlias = "";
+            String keyPassword = "";
+
+            // get the keystore from args
             KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
             keyStore.load(new FileInputStream(keyStorePath), keyStorePassword.toCharArray());
 
-            // get private key from keystore
-            String keyAlias = "toBeDefined"; //TODO
-            PrivateKey privateKey = (PrivateKey) keyStore.getKey(keyAlias, keyStorePassword.toCharArray());
-
-            // Create a TrustStore containing the server's trusted certificate
+            // get the trustStore containing the server's trusted certificate from args
             KeyStore trustStore = KeyStore.getInstance("JKS");
-            trustStore.load(new FileInputStream(trustStorePath), "truststore_password".toCharArray()); //TODO
+            trustStore.load(new FileInputStream(trustStorePath), null);
 
-            // Create an SSLContext using the TrustManager obtained from the TrustStore
-            TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance("SunX509");
-            trustManagerFactory.init(trustStore);
+            // get self certificate and keys
+            Certificate cert = (Certificate) keyStore.getCertificate(certificateAlias);
+            PublicKey publicKey = cert.getPublicKey();
+            PrivateKey privateKey = (PrivateKey) keyStore.getKey(keyAlias, keyPassword.toCharArray());
 
-            SSLContext sslContext = SSLContext.getInstance("TLS");
-            sslContext.init(null, trustManagerFactory.getTrustManagers(), new SecureRandom());
+            // create certificate
+            // TODO maybe remove this
+            FileInputStream fis = new FileInputStream(CERTIFICATES_DIR + "user" + userID + ".cer");
+            CertificateFactory cf = CertificateFactory.getInstance("X509");
+            Certificate certificate = (Certificate) cf.generateCertificate(fis);
+
+            // save the keystore to a file
+            // TODO maybe remove this
+            FileOutputStream fos = new FileOutputStream("ks" + userID + ".jks");
+            keyStore.store(fos, keyStorePassword.toCharArray());
+            fos.close();
 
             System.setProperty("javax.net.ssl.trustStore", trustStorePath);
-            System.setProperty("javax.net.ssl.trustStorePassword", "password"); //TODO
+            System.setProperty("javax.net.ssl.keyStore", keyStorePath);
+            System.setProperty("javax.net.ssl.keyStorePassword", keyStorePassword);
 
             SSLSocket clientSocketSSL = null;
             SocketFactory socketFactory = SSLSocketFactory.getDefault( );
@@ -72,9 +74,17 @@ public class Tintolmarket {
                 clientSocketSSL = (SSLSocket) socketFactory.createSocket(ipPort[0], Integer.parseInt(ipPort[1]));
             }
 
-            SSLSession sess = clientSocketSSL.getSession( );
-            String host = sess.getPeerHost( );
-            X509Certificate[] certs = sess.getPeerCertificateChain();
+            SSLSession session = clientSocketSSL.getSession( );
+
+            // verify the certificate from server
+            if (session != null) {
+                javax.security.cert.Certificate[] chain = session.getPeerCertificateChain();
+                if (chain != null) {
+                    // Retrieve and verify the end-entity certificate from the chain
+                    javax.security.cert.Certificate peerCertificate = chain[0];
+                    peerCertificate.verify(peerCertificate.getPublicKey());
+                }
+            }
 
             Scanner sc = new Scanner(System.in);
 
@@ -105,15 +115,9 @@ public class Tintolmarket {
 
             if (newUser) {
 
-                // create certificate and public key associated
-                FileInputStream fis = new FileInputStream(CERTIFICATES_DIR + "user" + userID + ".cer");
-                CertificateFactory cf = CertificateFactory.getInstance("X509");
-                Certificate userCert = (Certificate) cf.generateCertificate(fis);
-                PublicKey userPublicKey = userCert.getPublicKey();
-
                 outStream.writeObject(nonce);
                 outStream.writeObject(signature);
-                outStream.writeObject(userPublicKey);
+                outStream.writeObject(publicKey);
 
             } else {
                 // signing of nonce
@@ -125,7 +129,7 @@ public class Tintolmarket {
             }
 
             //answer authenticated/not authenticated
-            System.out.println("\n" + (String) inStream.readObject());
+            System.out.println(inStream.readObject());
 
             while(true) {
 
