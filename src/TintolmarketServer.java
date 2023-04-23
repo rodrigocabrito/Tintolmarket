@@ -55,17 +55,24 @@ public class TintolmarketServer {
     private static final String SERVER_FILES_DIR = "./serverFiles/";
     private static final String KEYSTORE_DIR = "./keystores/";
 
+    private static PublicKey publicKey = null;
+    private static PrivateKey privateKey = null;
+
     private static final ArrayList<Utilizador> listaUts = new ArrayList<>();
     private static final ArrayList<Wine> listaWines = new ArrayList<>();
     private static final HashMap<Utilizador, ArrayList<Sale>> forSale = new HashMap<>();
 
     public static void main(String[] args) throws IOException, InvalidKeySpecException, NoSuchAlgorithmException,
-            InvalidKeyException, NoSuchPaddingException, KeyStoreException, CertificateException {
+            InvalidKeyException, NoSuchPaddingException, KeyStoreException, CertificateException, UnrecoverableKeyException {
 
         int port = Integer.parseInt(args[0]);
         String password = args[1];
         String keyStorePath = args[2];
         String keyStorePassword = args[3];
+
+        String certificateAlias = "";
+        String keyAlias = "";
+        String keyPassword = "";
 
         String trustStorePath = KEYSTORE_DIR + "mytruststore.jks"; //TODO
 
@@ -76,6 +83,11 @@ public class TintolmarketServer {
         // get a trustStore containing the client's trusted certificates (if needed)
         KeyStore trustStore = KeyStore.getInstance("JKS");
         trustStore.load(new FileInputStream("client.truststore"), null); //TODO get truststore path
+
+        // get self certificate and keys
+        Certificate cert = (Certificate) keyStore.getCertificate(certificateAlias);
+        publicKey = cert.getPublicKey();
+        privateKey = (PrivateKey) keyStore.getKey(keyAlias, keyPassword.toCharArray());
 
         // TODO verificar salt e iterationCount param da funcao PBEKeySpec (20)
         // Generate the key based on the password passeed by args[1]
@@ -817,9 +829,14 @@ public class TintolmarketServer {
                             outStream.writeObject("Vinho colocado a venda! \n");
 
                             Transacao tSell = new Transacao(wine.getName(), Integer.parseInt(splitCommand[3]),
-                                    Integer.parseInt(splitCommand[2]), ut.getUserID());
+                                    Integer.parseInt(splitCommand[2]), ut.getUserID(), TransacaoType.SELL);
 
                             // TODO add blockchain
+
+                            // verificar assinatura
+                            // byte[] dataBytes = hash + id + nrTransacoes + transacoes;
+                            // byte[] signature = sign(dataBytes, privateKey);
+                            // boolean isValid = verify(dataBytes, signature, publicKey);
 
                         } else {
                             boolean updated = false;
@@ -862,9 +879,14 @@ public class TintolmarketServer {
                                 outStream.writeObject("Vinho colocado a venda! \n");
 
                                 Transacao tSell = new Transacao(wine.getName(), Integer.parseInt(splitCommand[3]),
-                                        Integer.parseInt(splitCommand[2]), ut.getUserID());
+                                        Integer.parseInt(splitCommand[2]), ut.getUserID(), TransacaoType.SELL);
 
                                 // TODO add blockchain
+
+                                // verificar assinatura
+                                // byte[] dataBytes = hash + id + nrTransacoes + transacoes;
+                                // byte[] signature = sign(dataBytes, privateKey);
+                                // boolean isValid = verify(dataBytes, signature, publicKey);
                             }
                         }
                     }
@@ -980,9 +1002,22 @@ public class TintolmarketServer {
                                             outStream.writeObject("Compra realizada com sucesso! \n");
 
                                             Transacao tBuy = new Transacao(sale.getWine().getName(), Integer.parseInt(splitCommand[3]),
-                                                    sale.getValue(), ut.getUserID());
+                                                    sale.getValue(), ut.getUserID(), TransacaoType.BUY);
 
                                             //TODO add to blockchain
+
+                                            // verificar assinatura
+
+                                            // Signature assinatura = Signature.getInstance("MD5withRSA");
+                                            // assinatura.initSign(privateKey);
+
+
+                                            // byte[] dataBytes = hash + id + nrTransacoes + transacoes;
+                                            // byte[] signature = sign(dataBytes, privateKey);
+                                            // assinatura.update(signature);
+                                            // boolean isValid = verify(dataBytes, signature, publicKey);
+
+                                            // add assinatura ao bloco
 
                                             // remover venda com quantidade 0
                                             if (sale.getQuantity() == 0) {
@@ -994,13 +1029,11 @@ public class TintolmarketServer {
                                 sales.remove(saleToRemove);
                             }
                         }
-
                         if (notFound) {
                             outStream.writeObject("O vinho indicado nao se encontra a venda! \n");
                         }
                     }
                 }
-
                 updateForSale();
                 updateBalance();
             }
@@ -1027,7 +1060,6 @@ public class TintolmarketServer {
                             outStream.writeObject("Vinho classificado! \n");
                         }
                     }
-
                     if (!contains) {
                         outStream.writeObject("O vinho que deseja classificar nao existe! \n");
                     }
@@ -1055,13 +1087,11 @@ public class TintolmarketServer {
                     if (!contains) {
                         outStream.writeObject("O utilizador nao existe! \n");
                     } else {
-
                         try {
 
                             for (int i = 2; i < splitCommand.length; i++) {
                                 message.append(splitCommand[i] + " ");
                             }
-
                             updateChat(splitCommand[1], message.toString());
                             outStream.writeObject("Mensagem enviada com sucesso! \n");
 
@@ -1189,6 +1219,26 @@ public class TintolmarketServer {
                 outStream.flush();
             }
             inputFile.close();
+        }
+
+        public static byte[] sign(byte[] data, PrivateKey privateKey) throws Exception {
+            // Create the signature object
+            Signature signature = Signature.getInstance("MD5withRSA");
+            signature.initSign(privateKey);
+            signature.update(data);
+
+            // Generate the digital signature
+            return signature.sign();
+        }
+
+        public static boolean verify(byte[] data, byte[] signature, PublicKey publicKey) throws Exception {
+            // Create the signature object
+            Signature sig = Signature.getInstance("MD5withRSA");
+            sig.initVerify(publicKey);
+            sig.update(data);
+
+            // Verify the digital signature
+            return sig.verify(signature);
         }
 
         /**
