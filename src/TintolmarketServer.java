@@ -7,6 +7,7 @@ import javax.net.ssl.SSLServerSocketFactory;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocket;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.*;
@@ -41,27 +42,31 @@ public class TintolmarketServer {
     static BufferedWriter bwSale = null;
 
     // chat
-    static BufferedReader brChat = null;
-    static BufferedWriter bwChat = null;
+    static BufferedReader brChat = null; //TODO remove
+    static BufferedWriter bwChat = null; //TODO remove
 
     // file paths
     private static final String AUTHENTICATION_FILE_TXT = "./data_bases/users.txt";
-    private static final String AUTHENTICATION_FILE_CIF = "./ciphers/users.cif";
-    private static final String AUTHENTICATION_FILE_KEY = "./keys/users.key";
+    private static final String AUTHENTICATION_FILE_CIF = "./data_bases/users.cif";
+    private static final String AUTHENTICATION_FILE_KEY = "./data_bases/users.key";
     private static final String BALANCE_FILE_TXT = "./data_bases/balance.txt";
     private static final String WINES_FILE_TXT = "./data_bases/wines.txt";
     private static final String FORSALE_FILE_TXT = "./data_bases/forSale.txt";
-    private static final String CHAT_FILE_TXT = "./data_bases/chat.txt";
+    private static final String CHAT_FILE_TXT = "./data_bases/chat.txt"; //TODO remove
 
+    // directories
     private static final String SERVER_FILES_DIR = "./serverFiles/";
     private static final String KEYSTORE_DIR = "./keystores/";
+    private static final String CHAT_DIR = "./chat/";
 
+    // server information
     private static PublicKey serverPublicKey = null;
     private static PrivateKey serverPrivateKey = null;
     private static Signature serverSignature = null;
 
+    // server memory
+    private static PublicKey[] clientPublicKeys = null;
     private static final Blockchain blockchain = new Blockchain();
-
     private static final ArrayList<Utilizador> listaUts = new ArrayList<>();
     private static final ArrayList<Wine> listaWines = new ArrayList<>();
     private static final HashMap<Utilizador, ArrayList<Sale>> forSale = new HashMap<>();
@@ -800,33 +805,49 @@ public class TintolmarketServer {
         /**
          * Updates the chat.txt file, appending the new interaction between users.
          * 
-         * @param receiver
-         * @param msg
+         * @param cipher
+         * @param receiverId
          */
-        private static void updateChat(String receiver, String msg) {
+        private static void updateChat(String receiverId, byte[] encryptedMessage, Cipher cipher) {
             //TODO garantir confidencialidade entre chat de clientes
             try {
-                byte[] hash = digestFile(CHAT_FILE_TXT);
+                byte[] hash = digestFile(CHAT_DIR + "user" + receiverId + ".cif");
 
-                brChat = new BufferedReader(new FileReader(CHAT_FILE_TXT));
-                String line;
-                StringBuilder sb = new StringBuilder();
+                // Open the existing CIF file for reading
+                File originalFile = new File(CHAT_DIR + "user" + receiverId + ".cif");
+                FileInputStream fis = new FileInputStream(originalFile);
 
-                while ((line = brChat.readLine()) != null) {
-                    sb.append(line + "\n");
+                // Create a temporary file for writing the modified CIF data
+                File tempFile = File.createTempFile("modified_cif_file", ".cif");
+                FileOutputStream fos = new FileOutputStream(tempFile);
+                CipherOutputStream cos = new CipherOutputStream(fos, cipher);
+
+                // Read the existing data from the input stream and write it to the CipherOutputStream
+                byte[] buffer = new byte[1024];
+                int bytesRead;
+                while ((bytesRead = fis.read(buffer)) != -1) {
+                    cos.write(buffer, 0, bytesRead);
                 }
 
-                if (isCorrupted(CHAT_FILE_TXT, hash)) { // TODO add readObject() in client
+                if (isCorrupted(CHAT_DIR + "user" + receiverId + ".cif", hash)) { // TODO add readObject() in client
                     outStream.writeObject("Tudo ok com o ficheiro chat.txt" + "\n");
                 } else {
                     outStream.writeObject("Ficheiro chat.txt corrupto! \n");
                 }
-                bwChat = new BufferedWriter(new FileWriter(CHAT_FILE_TXT));
 
-                // sender;receiver;msg
-                bwChat.write(sb.toString());
-                bwChat.write(ut.getUserID() + ";" + receiver + ";" + msg + "\n");
-                bwChat.close();
+                // Write the new data to the CipherOutputStream
+                cos.write(encryptedMessage);
+
+                // Close the streams
+                fis.close();
+                cos.close();
+
+                // Replace the original file with the modified file
+                if (originalFile.delete()) {
+                    Files.move(tempFile.toPath(), originalFile.toPath());
+                } else {
+                    throw new IOException("Failed to delete the original .cif file");
+                }
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -1168,15 +1189,19 @@ public class TintolmarketServer {
             if (splitCommand[0].equals("talk") || splitCommand[0].equals("t")) {
                 isValid = true;
                 boolean contains = false;
-                StringBuilder message = new StringBuilder();
+
+                outStream.writeObject("> ");
+                byte[] encryptedMessage = (byte[]) inStream.readObject();
 
                 if (splitCommand[1].equals(ut.getUserID())) {
                     outStream.writeObject("Comando invalido! O <receiver> nao pode ser o proprio! \n");
 
                 } else {
+                    Utilizador receiver = null;
                     for (Utilizador u : TintolmarketServer.listaUts) {
                         if (u.getUserID().equals(splitCommand[1]) && !contains) {
                             contains = true;
+                            receiver = u;
                         }
                     }
 
@@ -1184,13 +1209,12 @@ public class TintolmarketServer {
                         outStream.writeObject("O utilizador nao existe! \n");
                     } else {
                         try {
+                            Cipher cipher = Cipher.getInstance("RSA");
+                            cipher.init(Cipher.ENCRYPT_MODE, clientPublicKey); //TODO trocar para o receiver public key
 
-                            for (int i = 2; i < splitCommand.length; i++) {
-                                message.append(splitCommand[i] + " ");
-                            }
-                            updateChat(splitCommand[1], message.toString());
+                            updateChat(receiver.getUserID(), encryptedMessage, cipher);
+
                             outStream.writeObject("Mensagem enviada com sucesso! \n");
-
                         } catch (Exception e) {
                             outStream.writeObject("Erro no envio da mensagem! \n");
                             e.printStackTrace();
@@ -1208,44 +1232,53 @@ public class TintolmarketServer {
 
                 } else {
                     try {
+                        File chatDIr = new File("chat");
+                        File[] chatFiles = chatDIr.listFiles((CHAT_DIR, name) -> name.endsWith(".cif"));
 
-                        brChat = new BufferedReader(new FileReader(CHAT_FILE_TXT));
-                        String line;
+                        Cipher cipher = Cipher.getInstance("RSA");
+                        cipher.init(Cipher.DECRYPT_MODE, clientPrivateKey);
+
                         boolean empty = true;
-                        StringBuilder serverChat = new StringBuilder();
-                        StringBuilder message = new StringBuilder();
+                        String messages = "";
 
-                        while ((line = brChat.readLine()) != null) {
-
-                            if (!line.equals("")) {
-                                String[] splitLine = line.split(";");
-                                if (splitLine[1].equals(ut.getUserID())) {
-                                    // remove msg from server
-                                    message.append("mensagem de " + splitLine[0] + " : " + splitLine[2] + "\n");
+                        if (chatFiles != null) {
+                            // Read each .cif file in chat directory
+                            for (File chatFile : chatFiles) {
+                                if (chatFile.getName().contains(ut.getUserID())) {
                                     empty = false;
-                                } else {
-                                    serverChat.append(line + "\n");
+
+                                    CipherInputStream cis = new CipherInputStream(new FileInputStream(chatFile), cipher);
+                                    StringBuilder sb = new StringBuilder();
+                                    BufferedReader reader = new BufferedReader(new InputStreamReader(cis, StandardCharsets.UTF_8));
+                                    String line;
+                                    while ((line = reader.readLine()) != null) {
+                                        sb.append(line);
+                                        sb.append("\n");
+                                    }
+
+                                    messages = sb.toString();
+
+                                    reader.close();
+                                    cis.close();
+
+                                    // delete the .cif file after reading it
+                                    chatFile.delete();
                                 }
                             }
+
+                            if (empty) {
+                                outStream.writeObject("Nao tem mensagens por ler! \n");
+                            } else {
+                                outStream.writeObject(messages + "\n"); // TODO create message with all messages
+                            }
                         }
-
-                        if (empty) {
-                            outStream.writeObject("Nao tem mensagens por ler! \n");
-
-                        } else {
-                            outStream.writeObject(message);
-                            bwChat = new BufferedWriter(new FileWriter(CHAT_FILE_TXT));
-                            bwChat.write(serverChat.toString());
-                            bwChat.close();
-                        }
-
-                        brChat.close();
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
                 }
             }
 
+            // list
             if (splitCommand[0].equals("list") || splitCommand[0].equals("l")) {
                 isValid = true;
 

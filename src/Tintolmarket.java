@@ -6,6 +6,7 @@ import java.security.cert.CertificateFactory;
 import java.util.Date;
 import java.util.Scanner;
 
+import javax.crypto.Cipher;
 import javax.net.SocketFactory;
 import javax.net.ssl.*;
 import javax.security.cert.X509Certificate;
@@ -22,6 +23,10 @@ public class Tintolmarket {
     private static final String CLIENT_DIR = "./clientFiles/";
     private static final String CERTIFICATES_DIR = "./certificates/";
 
+    private static PublicKey publicKey = null;
+    private static PrivateKey privateKey = null;
+    private static Signature signature = null;
+
     public static void main(String[] args) {
         
         try {
@@ -31,9 +36,9 @@ public class Tintolmarket {
             String keyStorePassword = args[3];
             String userID = args[4];
 
-            String certificateAlias = "";
-            String keyAlias = "";
-            String keyPassword = "";
+            String certificateAlias = "";   //TODO
+            String keyAlias = "";           //TODO
+            String keyPassword = "";        //TODO
 
             // get the keystore from args
             KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
@@ -45,8 +50,8 @@ public class Tintolmarket {
 
             // get self certificate and keys
             Certificate cert = (Certificate) keyStore.getCertificate(certificateAlias);
-            PublicKey publicKey = cert.getPublicKey();
-            PrivateKey privateKey = (PrivateKey) keyStore.getKey(keyAlias, keyPassword.toCharArray());
+            publicKey = cert.getPublicKey();
+            privateKey = (PrivateKey) keyStore.getKey(keyAlias, keyPassword.toCharArray());
 
             // create certificate
             // TODO maybe remove this
@@ -76,7 +81,7 @@ public class Tintolmarket {
 
             SSLSession session = clientSocketSSL.getSession( );
 
-            // verify the certificate from server
+            // verify the certificate from server  //TODO maybe verify from truststore
             if (session != null) {
                 javax.security.cert.Certificate[] chain = session.getPeerCertificateChain();
                 if (chain != null) {
@@ -110,7 +115,7 @@ public class Tintolmarket {
             }
 
             // create signature from private key
-            Signature signature = Signature.getInstance("MD5withRSA");
+            signature = Signature.getInstance("MD5withRSA");
             signature.initSign(privateKey);
 
             if (newUser) {
@@ -231,6 +236,25 @@ public class Tintolmarket {
                         }
                     }
 
+                } else if (splitCommand[0].equals("talk") || splitCommand[0].equals("t")) {
+                    outStream.writeObject(command); //send command
+
+                    // get the public key from the client to send msg (trusstore)
+                    String certAlias = "user" + userID + "KP"; //TODO change to client certificate/keypair alias
+                    KeyStore truststore = KeyStore.getInstance("JKS");
+                    truststore.load(new FileInputStream("mytruststore.jks"), "password".toCharArray());
+                    Certificate trustedCert = (Certificate) truststore.getCertificate(certAlias);
+                    PublicKey publicKey = trustedCert.getPublicKey();
+
+                    Cipher cipher = Cipher.getInstance("RSA");
+                    cipher.init(Cipher.ENCRYPT_MODE, publicKey);
+
+                    System.out.println(inStream.readObject()); // "> "
+                    String txt = sc.nextLine();
+
+                    String message = "Mensagem de " + userID + ": " + txt + "\n";
+                    byte[] encryptedMsg = cipher.doFinal(message.getBytes());
+                    outStream.writeObject(encryptedMsg);    //send encrypted msg
                 } else {
                     outStream.writeObject(command); //send command
                 }
