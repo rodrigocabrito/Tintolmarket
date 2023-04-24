@@ -14,9 +14,10 @@ KEYSTORE_DIR="src/keystores"
 SERVER_KEYSTORE_FILE="server_keyStore.jks"
 
 # Specify the alias and password for the key pair
-SERVER_KEY_ALIAS="server_key_alias"
-SERVER_KEY_PASSWORD="server_key_passw"
+
 SERVER_KEYSTORE_PASSWORD="server_keyStore_passw"
+SERVER_KEY_ALIAS="server_key_alias"
+SERVER_KEY_PASSWORD=$SERVER_KEYSTORE_PASSWORD
 
 # Concatenate the path and filename to create the full path to the truststore file
 SERVER_KEYSTORE_PATH="$KEYSTORE_DIR/$SERVER_KEYSTORE_FILE"
@@ -27,9 +28,9 @@ SERVER_KEYSTORE_PATH="$KEYSTORE_DIR/$SERVER_KEYSTORE_FILE"
 USER1_KEYSTORE_FILE="user1_keyStore.jks"
 
 # Specify the alias and password for the key pair
-USER1_KEY_ALIAS="user1_key_alias"
-USER1_KEY_PASSWORD="user1_key_passw"
 USER1_KEYSTORE_PASSWORD="user1_keyStore_passw"
+USER1_KEY_ALIAS="user1_key_alias"
+USER1_KEY_PASSWORD=$USER1_KEYSTORE_PASSWORD
 
 # Concatenate the path and filename to create the full path to the truststore file
 USER1_KEYSTORE_PATH="$KEYSTORE_DIR/$USER1_KEYSTORE_FILE"
@@ -39,31 +40,33 @@ USER1_KEYSTORE_PATH="$KEYSTORE_DIR/$USER1_KEYSTORE_FILE"
 echo "criar keySTores para server e clientes"
 
 # Generate a new RSA key pair with a 2048-bit key size
-#keytool -genkeypair -alias $SERVER_KEY_ALIAS -keyalg RSA -keysize 2048 -keystore $SERVER_KEYSTORE_PATH -storepass $SERVER_KEYSTORE_PASSWORD -keypass $SERVER_KEYSTORE_PASSWORD
+keytool -genkeypair -alias $SERVER_KEY_ALIAS -keyalg RSA -keysize 2048 -keystore $SERVER_KEYSTORE_PATH -storepass $SERVER_KEYSTORE_PASSWORD -keypass $SERVER_KEY_PASSWORD
 
-#keytool -genkeypair -alias $USER1_KEY_ALIAS -keyalg RSA -keysize 2048 -keystore $USER1_KEYSTORE_PATH -storepass $USER1_KEYSTORE_PASSWORD -keypass $USER1_KEYSTORE_PASSWORD
+keytool -genkeypair -alias $USER1_KEY_ALIAS -keyalg RSA -keysize 2048 -keystore $USER1_KEYSTORE_PATH -storepass $USER1_KEYSTORE_PASSWORD -keypass $USER1_KEY_PASSWORD
 
 ################################################################################################################################################################
-
-echo "criar trustStore"
 
 ## CREATE TRUSTSTORE
 
 # Specify the path to the directory where the truststore file will be stored
 TRUSTSTORE_DIR="src/keystores"
 
-# Specify the filename for the truststore
+# Specify the filename and password for the truststore
 TRUSTSTORE_FILE="tintolmarket_trustStore.jks"
-
-TRUSTSTORE_ALIAS="trustStore_alias"
 TRUSTSTORE_PASSW="changeit"
+
+# Specify the alias for the server certificate
+SERVER_CERT_ALIAS="trustStore_alias"
 
 # Concatenate the path and filename to create the full path to the truststore file
 TRUSTSTORE_PATH="$TRUSTSTORE_DIR/$TRUSTSTORE_FILE"
 
-# Create an empty truststore with a default password of 'changeit'
+echo "create trustStore"
 
-keytool -create -alias $TRUSTSTORE_ALIAS -keystore $TRUSTSTORE_PATH
+# Create a truststore with the server certificate
+keytool -genkeypair -alias $SERVER_CERT_ALIAS -keystore $TRUSTSTORE_PATH -storepass $TRUSTSTORE_PASSW
+
+################################################################################################################################################################
 
 # Specify the alias and password for the trusted certificate
 CERT_ALIAS="certficate_alias"
@@ -71,6 +74,8 @@ CERT_PASSWORD="certificate_passw"
 
 # Specify the path to the trusted certificate file
 CERT_FILE="/path/to/trusted/certificate.crt"
+
+echo "add certificates to the trustStore"
 
 # Import the trusted certificate into the truststore
 #keytool -importcert -alias $CERT_ALIAS -file $CERT_FILE -keystore $TRUSTSTORE_PATH -storepass $CERT_PASSWORD
