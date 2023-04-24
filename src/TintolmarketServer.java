@@ -78,11 +78,9 @@ public class TintolmarketServer {
         String keyStorePath = args[2];
         String keyStorePassword = args[3];
 
-        String certificateAlias = "";
-        String keyAlias = "";
-        String keyPassword = "";
+        String keyAlias = "server_key_alias"; // TODO handtyped
 
-        String trustStorePath = KEYSTORE_DIR + "mytruststore.jks"; //TODO
+        String trustStorePath = KEYSTORE_DIR + "tintolmarket_trustStore.jks"; //TODO create trustStore
 
         // get keystore from args
         KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
@@ -90,12 +88,16 @@ public class TintolmarketServer {
 
         // get a trustStore containing the client's trusted certificates (if needed)
         KeyStore trustStore = KeyStore.getInstance("JKS");
-        trustStore.load(new FileInputStream("client.truststore"), null); //TODO get truststore path
+        trustStore.load(new FileInputStream(trustStorePath), null); //TODO get truststore path
+
 
         // get self certificate and keys
-        Certificate cert = (Certificate) keyStore.getCertificate(certificateAlias);
+        Certificate cert = (Certificate) keyStore.getCertificate(keyAlias);
         serverPublicKey = cert.getPublicKey();
-        serverPrivateKey = (PrivateKey) keyStore.getKey(keyAlias, keyPassword.toCharArray());
+        serverPrivateKey = (PrivateKey) keyStore.getKey(keyAlias, keyStorePassword.toCharArray());
+
+        // add server certificate to trustStore if its first time
+        //TODO
 
         serverSignature = Signature.getInstance("MD5withRSA");
         serverSignature.initSign(serverPrivateKey);
@@ -104,7 +106,7 @@ public class TintolmarketServer {
         // Generate the key based on the password passeed by args[1]
         byte[] salt = { (byte) 0xc9, (byte) 0x36, (byte) 0x78, (byte) 0x99, (byte) 0x52, (byte) 0x3e, (byte) 0xea, (byte) 0xf2 };
         PBEKeySpec keySpec = new PBEKeySpec(password.toCharArray(), salt, 20); // passw, salt, iterations
-        SecretKeyFactory kf = SecretKeyFactory.getInstance("PBEWithHmacSHA256AndAES_128"); //TODO check isntance com enunciado
+        SecretKeyFactory kf = SecretKeyFactory.getInstance("PBEWithHmacSHA256AndAES_128"); //TODO check instance com enunciado
         SecretKey key = kf.generateSecret(keySpec);
 
         Cipher cipher = Cipher.getInstance("AES");
