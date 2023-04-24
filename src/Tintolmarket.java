@@ -2,7 +2,10 @@
 import java.io.*;
 import java.net.Socket;
 import java.security.*;
-import java.security.cert.CertificateFactory;
+import java.security.Certificate;
+import java.security.cert.*;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Scanner;
 
@@ -21,49 +24,42 @@ import javax.security.cert.X509Certificate;
 public class Tintolmarket {
 
     private static final String CLIENT_DIR = "./clientFiles/";
-    private static final String CERTIFICATES_DIR = "./certificates/";
+    private static final String CERTIFICATES_DIR = "./certificates/"; //TODO remove
+    private static final String KEYSTORE_DIR = "./keystores/";
 
     private static PublicKey publicKey = null;
     private static PrivateKey privateKey = null;
     private static Signature signature = null;
+    private static KeyStore trustStore = null;
+    private static Certificate cert = null;
 
     public static void main(String[] args) {
         
         try {
 
-            String trustStorePath = args[1];
-            String keyStorePath = args[2];
+            String trustStoreFileName = args[1];
+            String keyStoreFileName = args[2];
             String keyStorePassword = args[3];
             String userID = args[4];
 
-            String certificateAlias = "";   //TODO
-            String keyAlias = "";           //TODO
-            String keyPassword = "";        //TODO
+            String keyAlias = "user" + userID + "_key_alias";
+            String defaultPasswordTrustStore = "changeit"; //TODO idk
+
+            String keyStorePath = KEYSTORE_DIR + keyStoreFileName;
+            String trustStorePath = KEYSTORE_DIR + trustStoreFileName;
+
+            // get the trustStore containing the server's trusted certificate from args
+            trustStore = KeyStore.getInstance("JKS");
+            trustStore.load(new FileInputStream(trustStorePath), defaultPasswordTrustStore.toCharArray());
 
             // get the keystore from args
             KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
             keyStore.load(new FileInputStream(keyStorePath), keyStorePassword.toCharArray());
 
-            // get the trustStore containing the server's trusted certificate from args
-            KeyStore trustStore = KeyStore.getInstance("JKS");
-            trustStore.load(new FileInputStream(trustStorePath), null);
-
             // get self certificate and keys
-            Certificate cert = (Certificate) keyStore.getCertificate(certificateAlias);
+            cert = (Certificate) keyStore.getCertificate(keyAlias);
             publicKey = cert.getPublicKey();
-            privateKey = (PrivateKey) keyStore.getKey(keyAlias, keyPassword.toCharArray());
-
-            // create certificate
-            // TODO maybe remove this
-            FileInputStream fis = new FileInputStream(CERTIFICATES_DIR + "user" + userID + ".cer");
-            CertificateFactory cf = CertificateFactory.getInstance("X509");
-            Certificate certificate = (Certificate) cf.generateCertificate(fis);
-
-            // save the keystore to a file
-            // TODO maybe remove this
-            FileOutputStream fos = new FileOutputStream("ks" + userID + ".jks");
-            keyStore.store(fos, keyStorePassword.toCharArray());
-            fos.close();
+            privateKey = (PrivateKey) keyStore.getKey(keyAlias, keyStorePassword.toCharArray());
 
             System.setProperty("javax.net.ssl.trustStore", trustStorePath);
             System.setProperty("javax.net.ssl.keyStore", keyStorePath);
@@ -83,11 +79,13 @@ public class Tintolmarket {
 
             // verify the certificate from server  //TODO maybe verify from truststore
             if (session != null) {
-                javax.security.cert.Certificate[] chain = session.getPeerCertificateChain();
+                // Get the server's certificate chain
+                java.security.cert.Certificate[] chain = session.getPeerCertificates();
                 if (chain != null) {
-                    // Retrieve and verify the end-entity certificate from the chain
-                    javax.security.cert.Certificate peerCertificate = chain[0];
-                    peerCertificate.verify(peerCertificate.getPublicKey());
+                    // Verify the server's certificate
+                    String alias = trustStore.getCertificateAlias(chain[0]);
+                    Certificate serverCert = (Certificate) trustStore.getCertificate(alias);
+                    chain[0].verify(serverCert.getPublicKey());
                 }
             }
 
@@ -120,9 +118,12 @@ public class Tintolmarket {
 
             if (newUser) {
 
+                // adicionar certificate do client a trustStore
+                trustStore.setCertificateEntry("user" + userID + "_cert", (java.security.cert.Certificate) cert);
+
                 outStream.writeObject(nonce);
                 outStream.writeObject(signature);
-                outStream.writeObject(publicKey);
+                outStream.writeObject(cert);
 
             } else {
                 // signing of nonce
@@ -178,10 +179,8 @@ public class Tintolmarket {
                             outStream.write(buffer, 0, bytesRead); //send file
                             outStream.flush();
                         }
-
                         inputFile.close();      
-                    }              
-
+                    }
                 } else if (splitCommand[0].equals("view") || splitCommand[0].equals("v")) {
 
                     outStream.writeObject(command); //send command
@@ -228,31 +227,27 @@ public class Tintolmarket {
                                 totalsize -= bytesRead;
                                 outputFile.flush();
                             }
-
                             outputFile.close();
                             fileOutputStream.close();
                         } catch (ClassNotFoundException e) {
                             e.printStackTrace();
                         }
                     }
-
                 } else if (splitCommand[0].equals("talk") || splitCommand[0].equals("t")) {
                     outStream.writeObject(command); //send command
 
-                    // get the public key from the client to send msg (trusstore)
-                    String certAlias = "user" + userID + "KP"; //TODO change to client certificate/keypair alias
-                    KeyStore truststore = KeyStore.getInstance("JKS");
-                    truststore.load(new FileInputStream("mytruststore.jks"), "password".toCharArray());
-                    Certificate trustedCert = (Certificate) truststore.getCertificate(certAlias);
-                    PublicKey publicKey = trustedCert.getPublicKey();
+                    // get the public key from the client to send msg (trustStore)
+                    String certAlias = splitCommand[1] + "_key_alias";
+                    Certificate trustedCert = (Certificate) trustStore.getCertificate(certAlias);
+                    PublicKey receiverPublicKey = trustedCert.getPublicKey();
 
                     Cipher cipher = Cipher.getInstance("RSA");
-                    cipher.init(Cipher.ENCRYPT_MODE, publicKey);
+                    cipher.init(Cipher.ENCRYPT_MODE, receiverPublicKey);
 
                     System.out.println(inStream.readObject()); // "> "
                     String txt = sc.nextLine();
 
-                    String message = "Mensagem de " + userID + ": " + txt + "\n";
+                    String message = "Mensagem de user" + userID + ": " + txt + "\n";
                     byte[] encryptedMsg = cipher.doFinal(message.getBytes());
                     outStream.writeObject(encryptedMsg);    //send encrypted msg
                 } else {
@@ -265,13 +260,11 @@ public class Tintolmarket {
                     sc.close();
                     clientSocketSSL.close();
                     System.exit(0);
-
                 } else {
                     //print answer
                     System.out.println("\n" + inStream.readObject());
                 }
-            }            
-
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
