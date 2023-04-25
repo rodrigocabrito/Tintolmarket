@@ -40,31 +40,28 @@ USER1_KEYSTORE_PATH="$KEYSTORE_DIR/$USER1_KEYSTORE_FILE"
 echo "criar keySTores para server e clientes"
 
 # Generate a new RSA key pair with a 2048-bit key size
-keytool -genkeypair -alias $SERVER_KEY_ALIAS -keyalg RSA -keysize 2048 -keystore $SERVER_KEYSTORE_PATH -storepass $SERVER_KEYSTORE_PASSWORD -keypass $SERVER_KEY_PASSWORD
+keytool -genkeypair -alias $SERVER_KEY_ALIAS -keyalg RSA -storetype JCEKS -keysize 2048 -keystore $SERVER_KEYSTORE_PATH -storepass $SERVER_KEYSTORE_PASSWORD -keypass $SERVER_KEY_PASSWORD
 
-keytool -genkeypair -alias $USER1_KEY_ALIAS -keyalg RSA -keysize 2048 -keystore $USER1_KEYSTORE_PATH -storepass $USER1_KEYSTORE_PASSWORD -keypass $USER1_KEY_PASSWORD
+keytool -genkeypair -alias $USER1_KEY_ALIAS -keyalg RSA -storetype JCEKS -keysize 2048 -keystore $USER1_KEYSTORE_PATH -storepass $USER1_KEYSTORE_PASSWORD -keypass $USER1_KEY_PASSWORD
 
 ################################################################################################################################################################
 
 ## CREATE TRUSTSTORE
 
-# Specify the path to the directory where the truststore file will be stored
-TRUSTSTORE_DIR="src/keystores"
-
 # Specify the filename and password for the truststore
 TRUSTSTORE_FILE="tintolmarket_trustStore.jks"
-TRUSTSTORE_PASSW="changeit"
+TRUSTSTORE_PASSWORD="changeit"
 
 # Specify the alias for the server certificate
-SERVER_CERT_ALIAS="trustStore_alias"
+SERVER_CERT_ALIAS="server_cert_alias"
 
 # Concatenate the path and filename to create the full path to the truststore file
-TRUSTSTORE_PATH="$TRUSTSTORE_DIR/$TRUSTSTORE_FILE"
+TRUSTSTORE_PATH="$KEYSTORE_DIR/$TRUSTSTORE_FILE"
 
 echo "create trustStore"
 
 # Create a truststore with the server certificate
-keytool -genkeypair -alias $SERVER_CERT_ALIAS -keystore $TRUSTSTORE_PATH -storepass $TRUSTSTORE_PASSW
+keytool -genkeypair -alias $SERVER_CERT_ALIAS -keyalg RSA -storetype JCEKS -keysize 2048 -keystore $TRUSTSTORE_PATH -storepass $TRUSTSTORE_PASSWORD -keypass $TRUSTSTORE_PASSWORD
 
 ################################################################################################################################################################
 

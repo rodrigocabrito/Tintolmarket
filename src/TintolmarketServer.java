@@ -71,27 +71,42 @@ public class TintolmarketServer {
 
     public static void main(String[] args) throws Exception {
 
-        int port = Integer.parseInt(args[0]);
-        String cipherPassword = args[1];
-        String keyStoreFileName = args[2];
-        String keyStorePassword = args[3];
+        int port;
+        String cipherPassword;
+        String keyStoreFileName;
+        String keyStorePassword;
+
+        if (args.length == 4) {
+            port = Integer.parseInt(args[0]);
+            cipherPassword = args[1];
+            keyStoreFileName = args[2];
+            keyStorePassword = args[3];
+        } else {
+            port = 12345;
+            cipherPassword = args[0];
+            keyStoreFileName = args[1];
+            keyStorePassword = args[2];
+        }
 
         String serverKeyAlias = "server_key_alias"; // from keyStore
         String serverCertAlias = "server_cert_alias"; // from trustStore
 
         String keyStorePath = KEYSTORE_DIR + keyStoreFileName;
         String trustStorePath = KEYSTORE_DIR + "tintolmarket_trustStore.jks";
+        String defaultPasswordTrustStore = "changeit"; //TODO idk
 
         // get a trustStore containing the client's trusted certificates (if needed)
-        trustStore = KeyStore.getInstance("JKS");
-        trustStore.load(new FileInputStream(trustStorePath), null);
+        FileInputStream kfile = new FileInputStream(trustStorePath);
+        trustStore = KeyStore.getInstance("JCEKS");
+        trustStore.load(kfile, defaultPasswordTrustStore.toCharArray());
 
         // get keystore from args
-        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
-        keyStore.load(new FileInputStream(keyStorePath), keyStorePassword.toCharArray());
+        FileInputStream kfile2 = new FileInputStream(keyStorePath);
+        KeyStore keyStore = KeyStore.getInstance("JCEKS");
+        keyStore.load(kfile2, keyStorePassword.toCharArray());
 
         // get self certificate and keys
-        Certificate cert = (Certificate) trustStore.getCertificate(serverCertAlias);
+        java.security.cert.Certificate cert = trustStore.getCertificate(serverCertAlias);
         serverPublicKey = cert.getPublicKey();
         serverPrivateKey = (PrivateKey) keyStore.getKey(serverKeyAlias, keyStorePassword.toCharArray());
         serverSignature = Signature.getInstance("MD5withRSA");
@@ -99,12 +114,15 @@ public class TintolmarketServer {
 
         // TODO verificar salt e iterationCount param da funcao PBEKeySpec (20)
         // Generate the key based on the password passeed by args[1]
+        Mac mac = Mac.getInstance("HmacSHA1");
+
         byte[] salt = { (byte) 0xc9, (byte) 0x36, (byte) 0x78, (byte) 0x99, (byte) 0x52, (byte) 0x3e, (byte) 0xea, (byte) 0xf2 };
         PBEKeySpec keySpec = new PBEKeySpec(cipherPassword.toCharArray(), salt, 20); // passw, salt, iterations
         SecretKeyFactory kf = SecretKeyFactory.getInstance("PBEWithHmacSHA256AndAES_128"); //TODO check instance com enunciado
         SecretKey key = kf.generateSecret(keySpec);
+        mac.init(key);
 
-        Cipher cipher = Cipher.getInstance("AES");
+        Cipher cipher = Cipher.getInstance("PBEWithHmacSHA256AndAES_128");
         cipher.init(Cipher.ENCRYPT_MODE, key);
 
         updateServerMemory();
@@ -129,7 +147,9 @@ public class TintolmarketServer {
         ServerSocketFactory ssf = SSLServerSocketFactory.getDefault();
 
         try {
+
             serverSocket = (SSLServerSocket) ssf.createServerSocket(port);
+            System.out.println("here");
 
         } catch (IOException e) {
             System.err.println(e.getMessage());
@@ -157,28 +177,30 @@ public class TintolmarketServer {
     private static void verifyIntegrityBlockchain() throws Exception {
         blockchain.loadBlocks();
 
-        if (blockchain.isChainValid()) {
-            System.out.println(" Blockchain valida! \n");
-        } else {
-            System.out.println(" Blockchain corrompida! \n"); // TODO exit?
-        }
+        if (blockchain.getBlocks().size() != 0) {
+            if (blockchain.isChainValid()) {
+                System.out.println(" Blockchain valida! \n");
+            } else {
+                System.out.println(" Blockchain corrompida! \n"); // TODO exit?
+            }
 
-        for (Block block : blockchain.getBlocks()) {
-            if (block.isBlockFull()) {
-                StringBuilder sb = new StringBuilder();
-                String data = block.getHash() + block.getId() + block.getNrTransacoes();
-                sb.append(data);
-                for (Transacao transacao : block.getTransacoes()) {
-                    sb.append(transacao.toString());
-                }
-                byte[] dataBytes = sb.toString().getBytes();
-                byte[] signature = sign(dataBytes);
-                boolean validSignature = verify(dataBytes, signature);
+            for (Block block : blockchain.getBlocks()) {
+                if (block.isBlockFull()) {
+                    StringBuilder sb = new StringBuilder();
+                    String data = block.getHash() + block.getId() + block.getNrTransacoes();
+                    sb.append(data);
+                    for (Transacao transacao : block.getTransacoes()) {
+                        sb.append(transacao.toString());
+                    }
+                    byte[] dataBytes = sb.toString().getBytes();
+                    byte[] signature = sign(dataBytes);
+                    boolean validSignature = verify(dataBytes, signature);
 
-                if (validSignature) {
-                    System.out.println("Assinatura do bloco com id " + block.getId() + " eh valido \n");
-                } else {
-                    System.out.println("Assinatura do bloco com id " + block.getId() + " eh invalido \n"); // TODO exit?
+                    if (validSignature) {
+                        System.out.println("Assinatura do bloco com id " + block.getId() + " eh valido \n");
+                    } else {
+                        System.out.println("Assinatura do bloco com id " + block.getId() + " eh invalido \n"); // TODO exit?
+                    }
                 }
             }
         }
