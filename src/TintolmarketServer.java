@@ -1,21 +1,20 @@
 import javax.crypto.*;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
-import javax.net.ServerSocketFactory;
-import javax.net.ssl.SSLServerSocket;
-import javax.net.ssl.SSLServerSocketFactory;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.SSLSocket;
+import javax.net.ssl.*;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.*;
+import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 
 /**
@@ -39,22 +38,17 @@ public class TintolmarketServer {
     static BufferedReader brSale = null;
     static BufferedWriter bwSale = null;
 
-    // chat
-    static BufferedReader brChat = null; //TODO remove
-    static BufferedWriter bwChat = null; //TODO remove
-
     // file paths
-    private static final String AUTHENTICATION_FILE_TXT = "./data_bases/users.txt";
     private static final String AUTHENTICATION_FILE_CIF = "./data_bases/users.cif";
     private static final String AUTHENTICATION_FILE_KEY = "./data_bases/users.key";
     private static final String BALANCE_FILE_TXT = "./data_bases/balance.txt";
     private static final String WINES_FILE_TXT = "./data_bases/wines.txt";
     private static final String FORSALE_FILE_TXT = "./data_bases/forSale.txt";
-    private static final String CHAT_FILE_TXT = "./data_bases/chat.txt"; //TODO remove
 
     // directories
     private static final String SERVER_FILES_DIR = "./serverFiles/";
     private static final String KEYSTORE_DIR = "./keystores/";
+    private static final String CERTIFICATES_DIR = "./certificates/";
     private static final String CHAT_DIR = "./chat/";
 
     // server information
@@ -105,20 +99,28 @@ public class TintolmarketServer {
         KeyStore keyStore = KeyStore.getInstance("JCEKS");
         keyStore.load(kfile2, keyStorePassword.toCharArray());
 
+        // Create a KeyManagerFactory to extract the server's private key and certificate from the keystore
+        KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+        keyManagerFactory.init(keyStore, keyStorePassword.toCharArray());
+
+        // Create a TrustManagerFactory to extract the client's public key from the truststore
+        TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        trustManagerFactory.init(trustStore);
+
         // get self certificate and keys
-        java.security.cert.Certificate cert = trustStore.getCertificate(serverCertAlias);
+        java.security.cert.Certificate cert = keyStore.getCertificate(serverKeyAlias);
         serverPublicKey = cert.getPublicKey();
         serverPrivateKey = (PrivateKey) keyStore.getKey(serverKeyAlias, keyStorePassword.toCharArray());
         serverSignature = Signature.getInstance("MD5withRSA");
         serverSignature.initSign(serverPrivateKey);
 
+        Mac mac = Mac.getInstance("HmacSHA256");
+
         // TODO verificar salt e iterationCount param da funcao PBEKeySpec (20)
         // Generate the key based on the password passeed by args[1]
-        Mac mac = Mac.getInstance("HmacSHA1");
-
         byte[] salt = { (byte) 0xc9, (byte) 0x36, (byte) 0x78, (byte) 0x99, (byte) 0x52, (byte) 0x3e, (byte) 0xea, (byte) 0xf2 };
-        PBEKeySpec keySpec = new PBEKeySpec(cipherPassword.toCharArray(), salt, 20); // passw, salt, iterations
-        SecretKeyFactory kf = SecretKeyFactory.getInstance("PBEWithHmacSHA256AndAES_128"); //TODO check instance com enunciado
+        PBEKeySpec keySpec = new PBEKeySpec(cipherPassword.toCharArray(), salt, 1000); // passw, salt, iterations
+        SecretKeyFactory kf = SecretKeyFactory.getInstance("PBEWithHmacSHA256AndAES_128");
         SecretKey key = kf.generateSecret(keySpec);
         mac.init(key);
 
@@ -127,49 +129,28 @@ public class TintolmarketServer {
 
         updateServerMemory();
 
-        verifyIntegrityBlockchain();
-
-        try {
-            BufferedReader br = new BufferedReader(new FileReader(CHAT_FILE_TXT));
-            br.close();
-
-        } catch (FileNotFoundException e) {
-            // if it doesn't exist, create chat.txt
-            FileWriter f = new FileWriter(CHAT_FILE_TXT);
-            f.close();
-        }
+        verifyIntegrityBlockchain(); //TODO check this
 
         System.setProperty("javax.net.ssl.keyStore", keyStorePath);
         System.setProperty("javax.net.ssl.keyStorePassword", keyStorePassword);
         System.setProperty("javax.net.ssl.trustStore", trustStorePath);
+        System.setProperty("javax.net.ssl.trustStorePassword", defaultPasswordTrustStore);
 
-        SSLServerSocket serverSocket = null;
-        ServerSocketFactory ssf = SSLServerSocketFactory.getDefault();
+        // Create an SSL context and configure it to use the key and trust managers
+        SSLContext sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), new SecureRandom());
 
-        try {
+        // Create an SSL socket factory and set it as the default socket factory
+        SSLServerSocketFactory sslServerSocketFactory = sslContext.getServerSocketFactory();
+        SSLServerSocket serverSocket = (SSLServerSocket) sslServerSocketFactory.createServerSocket(port);
 
-            serverSocket = (SSLServerSocket) ssf.createServerSocket(port);
-            System.out.println("here");
-
-        } catch (IOException e) {
-            System.err.println(e.getMessage());
-            System.exit(-1);
-        }
+        // Create a thread pool to handle multiple client connections concurrently
+        ExecutorService executorService = Executors.newCachedThreadPool();
 
         while (true) {
-
-            SSLSocket clientSocketSSL;
-            clientHandlerThread clientSSLThread = null;
-
-            try {
-
-                clientSocketSSL = (SSLSocket) serverSocket.accept();
-                clientSSLThread = new clientHandlerThread(clientSocketSSL, cipher, key);
-                clientSSLThread.start();
-
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            System.out.println("Waiting for a connection...");
+            SSLSocket clientSocket = (SSLSocket) serverSocket.accept();
+            executorService.submit(new clientHandlerThread(clientSocket, cipher, key));
         }
         //serverSocket.close();
     }
@@ -345,7 +326,7 @@ public class TintolmarketServer {
         while ((line = br.readLine()) != null) {
 
             String[] lineSplit = line.split(";");
-            listaUts.add(new Utilizador(lineSplit[0], Integer.parseInt(lineSplit[1])));
+            listaUts.add(new Utilizador(Integer.parseInt(lineSplit[0]), Integer.parseInt(lineSplit[1])));
         }
 
         if (isCorrupted(BALANCE_FILE_TXT, hash)) {
@@ -397,7 +378,7 @@ public class TintolmarketServer {
 
             Utilizador utSale = null;
             for (Utilizador u : listaUts) {
-                if (u.getUserID().equals(splitLine[0])) {
+                if (u.getUserID() == (Integer.parseInt(splitLine[0]))) {
                     utSale = u;
                 }
             }
@@ -424,6 +405,7 @@ public class TintolmarketServer {
         System.out.println("  listaForSale updated");
     }
 
+    // TODO check this
     private static boolean isCorrupted(String pathToFile, byte[] hashToCompare) throws NoSuchAlgorithmException, IOException {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] hash = digest.digest(Files.readAllBytes(Paths.get(pathToFile)));
@@ -489,18 +471,18 @@ public class TintolmarketServer {
         private static ObjectOutputStream outStream;
         private static ObjectInputStream inStream;
 
-        private BufferedWriter bwAuthTxt = null;
+        private BufferedWriter bwAuthTxt = null; //TODO remove
         private FileOutputStream fosAuthKey = null;
-        private FileInputStream fisAuthTxt = null;
+        private FileInputStream fisAuthTxt = null; //TODO remove
         private FileOutputStream fosAuthCif = null;
-        private CipherOutputStream cosAuth = null;
+        private CipherOutputStream cosAuthCif = null;
         private ObjectOutputStream oos = null;
 
-        private BufferedReader brAuthTxt = null;
+        private BufferedReader brAuthTxt = null; //TODO remove
         private FileInputStream fisAuthKey = null;
-        private FileOutputStream fosAuthTxt = null;
+        private FileOutputStream fosAuthTxt = null; //TODO remove
         private FileInputStream fisAuthCif = null;
-        private CipherInputStream cisAuth = null;
+        private CipherInputStream cisAuthCif = null;
         private ObjectInputStream oisKey = null;
 
 
@@ -515,37 +497,37 @@ public class TintolmarketServer {
 
             try {
 
-                SSLSession sslSession = sslSocket.getSession();
-
-                // verify the certificate from server  //TODO maybe verify from truststore
-                if (sslSession != null) {
-                    // Get the server's certificate chain
-                    java.security.cert.Certificate[] chain = sslSession.getPeerCertificates();
-                    if (chain != null) {
-                        // Verify the client's certificate
-                        String alias = trustStore.getCertificateAlias(chain[0]);
-                        Certificate serverCert = (Certificate) trustStore.getCertificate(alias);
-                        chain[0].verify(serverCert.getPublicKey());
-                    }
-                }
-
                 // streams
                 outStream = new ObjectOutputStream(sslSocket.getOutputStream());
                 inStream = new ObjectInputStream(sslSocket.getInputStream());
 
-                String userID = null;
+                int userID = 0;
+                boolean newUser = true;
                 Random random = new Random();
                 long nonce = random.nextLong() & 0xFFFFFFFFFFFFFFL;
-                boolean newUser = true;
+
+                // for decryption
+                //cipher.doFinal("Ola Joana!".getBytes());
+                byte[] params = cipher.getParameters().getEncoded();
+                AlgorithmParameters p = AlgorithmParameters.getInstance("PBEWithHmacSHA256AndAES_128");
+                p.init(params);
+
+                // write the key to the users.cif file on users.key file
+                byte[] keyEncoded = key.getEncoded();
+                fosAuthKey = new FileOutputStream(AUTHENTICATION_FILE_KEY);
+                oos = new ObjectOutputStream(fosAuthKey);
+                oos.writeObject(keyEncoded);
+                oos.close();
+                fosAuthKey.close();
 
                 try {
 
-                    userID = (String) inStream.readObject();
+                    userID = (int) inStream.readObject();
 
+                    // check if the user is already known to the server
                     if (listaUts.size() != 0) {
-
                         for (Utilizador u : listaUts) {
-                            if (u.getUserID().equals(userID)) {
+                            if (u.getUserID() == userID) {
                                 ut = u;
                                 newUser = false;
                             }
@@ -557,65 +539,113 @@ public class TintolmarketServer {
                         // enviar nonce com flag de ut desconhecido
                         outStream.writeObject(nonce + ":newUser");
 
-                        // receber nonce, assinatura e chave publica do certificado
+                        // receber nonce, assinatura e certificado do cliente
                         long nonceFromClient = (long) inStream.readObject();
-                        clientSignature = (Signature) inStream.readObject();
-                        Certificate certificate = (Certificate) inStream.readObject();
+                        byte[] signatureBytes = (byte[]) inStream.readObject();
+                        X509Certificate certificate = (X509Certificate) inStream.readObject();
                         clientPublicKey = certificate.getPublicKey();
 
-                        // verificar se nonce é o enviado e verificar assinatura com a chave publica
-                        // TODO como conseguir os bytes da assinatura para a verificação se nao assina nehuma data
-                        clientSignature.initVerify(clientPublicKey);
-                        //clientSignature.update(someData);
-                        byte[] signatureBytes = clientSignature.sign();
-                        boolean verifiedSignature = clientSignature.verify(signatureBytes);
+                        // verificar assinatura do cliente
+                        Signature signature = Signature.getInstance("SHA256withRSA");
+                        signature.initVerify(clientPublicKey); // clientPublicKey is the public key of the client stored on the server
+                        signature.update("Hello, server!".getBytes());
+                        boolean verifiedSignature = signature.verify(signatureBytes);
 
+                        // verificar se nonce é o enviado && assinatura verificada
                         if ((nonceFromClient == nonce) && verifiedSignature) {
                             outStream.writeObject("Registo e autenticacao bem sucedida! \n");
 
                             ut = new Utilizador(userID, 200);
                             listaUts.add(ut);
-
-                            trustStore.setCertificateEntry("user" + userID + "_cert", (java.security.cert.Certificate) certificate);
                         } else {
                             outStream.writeObject("Registo e autenticacao nao foi bem sucedida... \n");
-                            System.exit(-1);
+                            System.exit(-1); //TODO is it supose to exit?
                         }
 
+                    } else { //TODO
+                        outStream.writeObject(Long.toString(nonce));
 
-
-                    } else {
-                        outStream.writeObject(nonce);
-
-                        brAuthTxt = new BufferedReader(new FileReader(AUTHENTICATION_FILE_TXT));
+                        String userCertPath = null;
+                        String keyAlias = "user" + userID + "_key_alias";
                         String line;
-                        String keyStorePath = "";
-                        boolean done = false;
 
-                        while (((line = brAuthTxt.readLine()) != null) && !done) {
-                            if (line.contains(userID)) {
-                                String[] splitLine = line.split(":");
-                                keyStorePath = splitLine[1];
+                        // decrypt
+                        FileInputStream fisKey = new FileInputStream(AUTHENTICATION_FILE_KEY);
+                        ObjectInputStream oisKey = new ObjectInputStream(fisKey);
+                        //byte[] keyEncoded2 = (byte[]) oisKey.readObject();
+                        byte[] keyEncoded2 = key.getEncoded();
+                        oisKey.close();
+
+                        SecretKeySpec keySpec = new SecretKeySpec(keyEncoded2, "PBEWithHmacSHA256AndAES_128");
+                        Cipher d = Cipher.getInstance("PBEWithHmacSHA256AndAES_128");
+                        d.init(Cipher.DECRYPT_MODE, keySpec, p);
+
+                        FileInputStream ffis = new FileInputStream(AUTHENTICATION_FILE_CIF);
+                        FileOutputStream ffos = new FileOutputStream("temp.txt");
+                        CipherInputStream cis;
+                        cis = new CipherInputStream(ffis, d);
+                        byte[] b1 = new byte[1024];
+
+                        int i1 = 0;
+                        System.out.println("Este é o i1 fora do while: " + i1);
+                        while ((i1 = cis.read(b1)) != -1) {
+                            ffos.write(b1, 0, i1);
+                            System.out.println("i1 after read: " + i1);
+                        }
+
+                        // Read each line from temp.txt (users.cif)
+                        BufferedReader br = new BufferedReader(new FileReader("temp.txt"));
+                        boolean done = false;
+                        while (((line = br.readLine()) != null) && !done) {
+                            String[] splitLine = line.split(":");
+                            if (splitLine[0].equals(Integer.toString(userID))) {
+                                userCertPath = splitLine[1];
                                 done = true;
                             }
                         }
-                        brAuthTxt.close();
+                        br.close();
+                        System.out.println(done);
+
+                        //Encrypt
+                        FileInputStream fis;
+                        FileOutputStream fos;
+                        CipherOutputStream cos;
+
+                        fis = new FileInputStream("temp.txt");
+                        fos = new FileOutputStream(AUTHENTICATION_FILE_CIF);
+
+                        cos = new CipherOutputStream(fos, cipher);
+                        byte[] b = new byte[1024];
+                        int i = fis.read(b);
+                        while (i != -1) {
+                            cos.write(b, 0, i);
+                            i = fis.read(b);
+                        }
+
+                        cos.close();
+                        fis.close();
+                        fos.close();
+
+                        File file = new File("temp.txt");
+                        file.delete();
 
                         // receber assinatura do cliente e verificar com a
                         // chave publica do users.txt desse cliente
                         byte[] signedNonce = (byte[]) inStream.readObject();
 
-                        KeyStore keystore = KeyStore.getInstance("JKS");
-                        keystore.load(new FileInputStream(keyStorePath), null);
+                        //KeyStore keystore = KeyStore.getInstance("JCEKS");
+                        //keystore.load(new FileInputStream(keyStorePath), null);
 
-                        KeyStore.Entry entry = keystore.getEntry(userID + "kp", null); //TODO verificar key alias
-                        KeyStore.PrivateKeyEntry privateKeyEntry = (KeyStore.PrivateKeyEntry) entry;
-                        clientPrivateKey = privateKeyEntry.getPrivateKey();
+                        //KeyStore.Entry entry = trustStore.getEntry(keyAlias, null); //TODO mudar para getKeyEntry
+                        //KeyStore.PrivateKeyEntry privateKeyEntry = (KeyStore.PrivateKeyEntry) entry;
+                        //clientPrivateKey = privateKeyEntry.getPrivateKey();
 
-                        Certificate[] chain = (Certificate[]) ((KeyStore.PrivateKeyEntry) entry).getCertificateChain();
-
+                        FileInputStream fis2 = new FileInputStream(CERTIFICATES_DIR + userCertPath);
+                        CertificateFactory cf = CertificateFactory.getInstance("X509");
+                        X509Certificate cert = (X509Certificate) cf.generateCertificate(fis2);
+                        //java.security.cert.Certificate[] chain = ((KeyStore.PrivateKeyEntry) entry).getCertificateChain();
+                        //java.security.cert.Certificate[] chain2 = trustStore.getCertificateChain();
                         // Get the public key from the certificate from the keystore on users.txt
-                        X509Certificate cert = (X509Certificate) chain[0];
                         PublicKey publicKey = cert.getPublicKey();
 
                         // verificar a assinatura do cliente com a chave publica
@@ -627,7 +657,7 @@ public class TintolmarketServer {
                         if (validSignature) {
                             outStream.writeObject("Autenticacao bem sucedida! \n");
                         } else {
-                            outStream.writeObject("Autenticacao inválida! \n");
+                            outStream.writeObject("Autenticacao inválida! \n"); // TODO supose to exit?
                         }
                     }
                 } catch (Exception e) {
@@ -635,93 +665,121 @@ public class TintolmarketServer {
                 }
 
                 boolean isNewFile = false;
-                // create users.txt file in case it doesn't exist
+                // create users.cif file in case it doesn't exist
                 try {
-                    brAuthTxt = new BufferedReader(new FileReader(AUTHENTICATION_FILE_TXT));
+                    System.out.println("ficheiro existe");
+                    fisAuthCif = new FileInputStream((AUTHENTICATION_FILE_CIF));
+                    cisAuthCif = new CipherInputStream(fisAuthCif, cipher);
                 } catch (FileNotFoundException e) {
                     // file doesn't exist, create it
                     try {
                         isNewFile = true;
-                        FileWriter fw = new FileWriter(AUTHENTICATION_FILE_TXT);
+                        FileWriter fw = new FileWriter(AUTHENTICATION_FILE_CIF);
                         fw.close();
-                        brAuthTxt = new BufferedReader(new FileReader(AUTHENTICATION_FILE_TXT));
+                        fisAuthCif = new FileInputStream((AUTHENTICATION_FILE_CIF));
+                        cisAuthCif = new CipherInputStream(fisAuthCif, cipher);
+                        System.out.println("ficheiro nao existia");
                     } catch (Exception ex) {
                         ex.printStackTrace();
                     }
                 }
 
-                // only decifer users.cif file if the file contains data
-                int bytesRead = 0;
-                if (!isNewFile) {
-
-                    // decifer from file users.cif to file users.txt
-                    fisAuthKey = new FileInputStream(AUTHENTICATION_FILE_KEY);
-                    oisKey = new ObjectInputStream(fisAuthKey);
-                    byte[] keyEncoded2 = (byte[]) oisKey.readObject();
-                    oisKey.close();
-
-                    SecretKeySpec keySpec2 = new SecretKeySpec(keyEncoded2, "AES");
-                    Cipher d = Cipher.getInstance("AES");
-                    d.init(Cipher.DECRYPT_MODE, keySpec2);
-
-                    fosAuthTxt = new FileOutputStream(AUTHENTICATION_FILE_TXT);
-                    fisAuthCif = new FileInputStream(AUTHENTICATION_FILE_CIF);
-                    cisAuth = new CipherInputStream(fisAuthCif, d);
-
-                    byte[] buffer1 = new byte[16];
-                    bytesRead = cisAuth.read(buffer1);
-                    while (bytesRead != -1) {
-                        fosAuthTxt.write(buffer1, 0, bytesRead);
-                        bytesRead = cisAuth.read(buffer1);
-                    }
-
-                    fisAuthKey.close();
-                    fosAuthTxt.close();
-                    fisAuthCif.close();
-                    cisAuth.close();
-                }
-
                 StringBuilder sb = new StringBuilder();
                 String line = null;
 
-                // read from users.txt
-                while (((line = brAuthTxt.readLine()) != null)) {
-                    sb.append(line + "\n");
-                }
-                brAuthTxt.close();
-
-                bwAuthTxt = new BufferedWriter(new FileWriter(AUTHENTICATION_FILE_TXT));
-
+                // only update users.cif if it's a new user
                 if (newUser) {
-                    sb.append(userID + ":" + "ks" + userID + ".jks" + "\n"); // insert new user credentials
+                    /*
+                    BufferedWriter bw = new BufferedWriter(new FileWriter(AUTHENTICATION_FILE_CIF));
+                    bw.write(userID + ":" + "user" + userID + "_certificate.cer" + "\n");
+
+                    bw.close();
+                    */
+                    /*
+                    // Create CipherInputStream to read encrypted .cif file
+                    FileInputStream fis = new FileInputStream(AUTHENTICATION_FILE_CIF);
+                    CipherInputStream cis = new CipherInputStream(fis, cipher);
+
+                    // Read each line from the CipherInputStream
+                    BufferedReader br = new BufferedReader(new InputStreamReader(cis));
+
+                    //TODO check talk (use same method)
+                    while (((line = br.readLine()) != null)) {
+                        sb.append(line + "\n");
+                    }
+                    br.close();
+
+                    sb.append(userID + ":" + "user" + userID + "_certificate.cer" + "\n");
+
+                    fosAuthCif = new FileOutputStream(AUTHENTICATION_FILE_CIF);
+                    cosAuthCif = new CipherOutputStream(fosAuthCif, cipher);
+
+                    //update cif file with new user
+                    cosAuthCif.write(sb.toString().getBytes());
+                    cosAuthCif.close();
+                    */
+
+                    if (!isNewFile) {
+
+                        // decrypt
+                        FileInputStream fisKey = new FileInputStream(AUTHENTICATION_FILE_KEY);
+                        ObjectInputStream oisKey = new ObjectInputStream(fisKey);
+                        //byte[] keyEncoded3 = (byte[]) oisKey.readObject();
+                        byte[] keyEncoded3 = key.getEncoded();
+                        oisKey.close();
+
+                        SecretKeySpec keySpec = new SecretKeySpec(keyEncoded3, "PBEWithHmacSHA256AndAES_128");
+                        Cipher d = Cipher.getInstance("PBEWithHmacSHA256AndAES_128");
+                        d.init(Cipher.DECRYPT_MODE, keySpec, p);
+
+                        FileInputStream ffis = new FileInputStream(AUTHENTICATION_FILE_CIF);
+                        FileOutputStream ffos = new FileOutputStream("temp.txt");
+                        CipherInputStream cis;
+                        cis = new CipherInputStream(ffis, d);
+                        byte[] b1 = new byte[1024];
+                        int i1 = cis.read(b1);
+                        while (i1 != -1) {
+                            ffos.write(b1, 0, i1);
+                            i1 = cis.read(b1);
+                        }
+
+                        String toAdd = userID + ":" + "user" + userID + "_certificate.cer" + "\n";
+                        ffos.write(toAdd.getBytes());
+
+                        fisKey.close();
+                        ffos.close();
+                        ffis.close();
+                        cis.close();
+                    } else {
+                        FileOutputStream ffos = new FileOutputStream("temp.txt");
+                        String toAdd = userID + ":" + "user" + userID + "_certificate.cer" + "\n";
+                        ffos.write(toAdd.getBytes());
+                    }
+
+                    // Encrypt
+                    FileInputStream fis;
+                    FileOutputStream fos;
+                    CipherOutputStream cos;
+
+                    fis = new FileInputStream("temp.txt");
+                    fos = new FileOutputStream(AUTHENTICATION_FILE_CIF);
+
+                    cos = new CipherOutputStream(fos, cipher);
+                    byte[] b = new byte[1024];
+                    int i = fis.read(b);
+                    while (i != -1) {
+                        cos.write(b, 0, i);
+                        i = fis.read(b);
+                    }
+
+                    cos.close();
+                    fis.close();
+                    fos.close();
+
+                    File file = new File("temp.txt");
+                    file.delete();
                 }
-                bwAuthTxt.write(sb.toString());
-                bwAuthTxt.close();
 
-                // read from users.txt and write to users.cif
-                fisAuthTxt = new FileInputStream(AUTHENTICATION_FILE_TXT);
-                fosAuthCif = new FileOutputStream(AUTHENTICATION_FILE_CIF);
-                cosAuth = new CipherOutputStream(fosAuthCif, cipher);
-
-                byte[] buffer = new byte[16];
-                bytesRead = fisAuthTxt.read(buffer);
-                while (bytesRead != -1) {
-                    cosAuth.write(buffer, 0, bytesRead);
-                    bytesRead = fisAuthTxt.read(buffer);
-                }
-
-                fisAuthCif.close();
-                fosAuthCif.close();
-                cosAuth.close();
-
-                // write the key to the users.cif file on users.key file
-                byte[] keyEncoded = key.getEncoded();
-
-                fosAuthKey = new FileOutputStream(AUTHENTICATION_FILE_KEY);
-                oos = new ObjectOutputStream(fosAuthKey);
-                oos.writeObject(keyEncoded);
-                oos.close();
-                fosAuthKey.close();
 
                 // updates the balance of every user
                 updateBalance();
@@ -824,10 +882,10 @@ public class TintolmarketServer {
         /**
          * Updates the chat.txt file, appending the new interaction between users.
          * 
-         * @param cipher
+         * @param encryptedMessage
          * @param receiverId
          */
-        private static void updateChat(String receiverId, byte[] encryptedMessage, Cipher cipher) {
+        private static void updateChat(int receiverId, byte[] encryptedMessage, Cipher cipherToEncrypt) { //TODO probably wrong
             try {
                 byte[] hash = digestFile(CHAT_DIR + "user" + receiverId + ".cif");
 
@@ -835,10 +893,10 @@ public class TintolmarketServer {
                 File originalFile = new File(CHAT_DIR + "user" + receiverId + ".cif");
                 FileInputStream fis = new FileInputStream(originalFile);
 
-                // Create a temporary file for writing the modified CIF data
+                // Create a temporary file for writing the modified .cif data
                 File tempFile = File.createTempFile("modified_cif_file", ".cif");
                 FileOutputStream fos = new FileOutputStream(tempFile);
-                CipherOutputStream cos = new CipherOutputStream(fos, cipher);
+                CipherOutputStream cos = new CipherOutputStream(fos, cipherToEncrypt);
 
                 // Read the existing data from the input stream and write it to the CipherOutputStream
                 byte[] buffer = new byte[1024];
@@ -960,6 +1018,7 @@ public class TintolmarketServer {
                                     Integer.parseInt(splitCommand[2]), ut.getUserID(), TransacaoType.SELL);
 
                             // verificar assinatura pelo cliente
+                            // TODO client envia assinatura assinada com "venda" e aqui verifica-se como foi feito na cena do nonce
                             clientSignature.update(tSell.toString().getBytes());
                             byte[] signatureBytes = clientSignature.sign();
                             boolean verifiedSignature = clientSignature.verify(signatureBytes);
@@ -976,7 +1035,7 @@ public class TintolmarketServer {
                             for (HashMap.Entry<Utilizador,ArrayList<Sale>> entry : TintolmarketServer.forSale.entrySet()) {
                                 Utilizador u = entry.getKey();
 
-                                if ((u.getUserID()).equals((ut.getUserID()))) {
+                                if (u.getUserID() == ut.getUserID()) {
 
                                     ArrayList<Sale> sales = entry.getValue();
                                     for (Sale sale : sales) {
@@ -1089,7 +1148,7 @@ public class TintolmarketServer {
                     outStream.writeObject(
                             "Comando invalido! A operacao buy necessita de 3 argumentos <wine> <seller> <quantity>. \n");
 
-                } else if (splitCommand[2].equals(ut.getUserID())) {
+                } else if (Integer.parseInt(splitCommand[2]) == ut.getUserID()) {
                     outStream.writeObject("Comando invalido! <seller> nao pode ser o proprio! \n");
 
                 } else {
@@ -1108,7 +1167,7 @@ public class TintolmarketServer {
                         for (HashMap.Entry<Utilizador,ArrayList<Sale>> entry : TintolmarketServer.forSale.entrySet()) {
                             Utilizador utSeller = entry.getKey();
                             
-                            if (utSeller.getUserID().equals(splitCommand[2]) && !sold) {// find seller
+                            if (utSeller.getUserID() == (Integer.parseInt(splitCommand[2])) && !sold) {// find seller
                                 
                                 ArrayList<Sale> sales = entry.getValue();
                                 Sale saleToRemove = null;
@@ -1211,13 +1270,13 @@ public class TintolmarketServer {
                 outStream.writeObject("> ");
                 byte[] encryptedMessage = (byte[]) inStream.readObject();
 
-                if (splitCommand[1].equals(ut.getUserID())) {
+                if (Integer.parseInt(splitCommand[1]) == ut.getUserID()) {
                     outStream.writeObject("Comando invalido! O <receiver> nao pode ser o proprio! \n");
 
                 } else {
                     Utilizador receiver = null;
                     for (Utilizador u : TintolmarketServer.listaUts) {
-                        if (u.getUserID().equals(splitCommand[1]) && !contains) {
+                        if (u.getUserID() == (Integer.parseInt(splitCommand[1])) && !contains) {
                             contains = true;
                             receiver = u;
                         }
@@ -1254,7 +1313,7 @@ public class TintolmarketServer {
                         File[] chatFiles = chatDIr.listFiles((CHAT_DIR, name) -> name.endsWith(".cif"));
 
                         Cipher cipher = Cipher.getInstance("RSA");
-                        cipher.init(Cipher.DECRYPT_MODE, clientPrivateKey);
+                        cipher.init(Cipher.DECRYPT_MODE, clientPrivateKey); //TODO client envia a propria privateKey
 
                         boolean empty = true;
                         String messages = "";
@@ -1262,7 +1321,7 @@ public class TintolmarketServer {
                         if (chatFiles != null) {
                             // Read each .cif file in chat directory
                             for (File chatFile : chatFiles) {
-                                if (chatFile.getName().contains(ut.getUserID())) {
+                                if (chatFile.getName().contains(Integer.toString(ut.getUserID()))) {
                                     empty = false;
 
                                     CipherInputStream cis = new CipherInputStream(new FileInputStream(chatFile), cipher);
@@ -1305,13 +1364,19 @@ public class TintolmarketServer {
 
                 } else {
                     StringBuilder sb = new StringBuilder();
-                    for (Block block : blockchain.getBlocks()) {
-                        for (Transacao transacao : block.getTransacoes()) {
-                            sb.append(transacao.toString() + "\n\n");
-                            sb.append("-------------------------------------- \n");
+                    if (blockchain.getBlocks() != null) {
+                        for (Block block : blockchain.getBlocks()) {
+
+                            if (block.getTransacoes() != null) {
+                                for (Transacao transacao : block.getTransacoes()) {
+
+                                    sb.append(transacao.toString() + "\n\n");
+                                    sb.append("-------------------------------------- \n");
+                                }
+                            }
                         }
+                        outStream.writeObject(sb.toString());
                     }
-                    outStream.writeObject(sb.toString());
                 }
             }
 

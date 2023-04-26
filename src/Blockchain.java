@@ -40,7 +40,7 @@ public class Blockchain {
                 System.out.println("Bloco com id " + i + " tem hash errado.");
                 return false;
             }
-
+            // maybe remove
             if (!currentBlock.getHash().equals(previousBlock.getHash())) {
                 System.out.println("Block " + i + " has an invalid previous hash.");
                 return false;

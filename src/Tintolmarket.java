@@ -31,7 +31,7 @@ public class Tintolmarket {
     private static PrivateKey privateKey = null;
     private static Signature signature = null;
     private static KeyStore trustStore = null;
-    private static Certificate cert = null;
+    private static java.security.cert.Certificate cert = null;
 
     public static void main(String[] args) {
         
@@ -40,7 +40,7 @@ public class Tintolmarket {
             String trustStoreFileName = args[1];
             String keyStoreFileName = args[2];
             String keyStorePassword = args[3];
-            String userID = args[4];
+            int userID = Integer.parseInt(args[4]);
 
             String keyAlias = "user" + userID + "_key_alias";
             String defaultPasswordTrustStore = "changeit"; //TODO idk
@@ -49,80 +49,92 @@ public class Tintolmarket {
             String trustStorePath = KEYSTORE_DIR + trustStoreFileName;
 
             // get the trustStore containing the server's trusted certificate from args
-            trustStore = KeyStore.getInstance("JKS");
+            trustStore = KeyStore.getInstance("JCEKS");
             trustStore.load(new FileInputStream(trustStorePath), defaultPasswordTrustStore.toCharArray());
 
             // get the keystore from args
-            KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+            KeyStore keyStore = KeyStore.getInstance("JCEKS");
             keyStore.load(new FileInputStream(keyStorePath), keyStorePassword.toCharArray());
 
+            // Create a KeyManagerFactory to extract the client's private key and certificate from the keystore
+            KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            keyManagerFactory.init(keyStore, keyStorePassword.toCharArray());
+
+            TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            trustManagerFactory.init(trustStore);
+
+            // Create an SSL context and configure it to use the key and trust managers
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), new SecureRandom());
+
             // get self certificate and keys
-            cert = (Certificate) keyStore.getCertificate(keyAlias);
+            cert = keyStore.getCertificate(keyAlias);
             publicKey = cert.getPublicKey();
             privateKey = (PrivateKey) keyStore.getKey(keyAlias, keyStorePassword.toCharArray());
 
-            System.setProperty("javax.net.ssl.trustStore", trustStorePath);
             System.setProperty("javax.net.ssl.keyStore", keyStorePath);
             System.setProperty("javax.net.ssl.keyStorePassword", keyStorePassword);
+            System.setProperty("javax.net.ssl.trustStore", trustStorePath);
+            System.setProperty("javax.net.ssl.trustStorePassword", defaultPasswordTrustStore);
 
-            SSLSocket clientSocketSSL = null;
-            SocketFactory socketFactory = SSLSocketFactory.getDefault( );
+            // Create an SSL socket factory and set it as the default socket factory
+            SSLSocketFactory sslSocketFactory = sslContext.getSocketFactory();
+            SSLSocket socket = null;
 
             String[] ipPort = args[0].split(":");
             if (ipPort.length == 1) {
-                clientSocketSSL = (SSLSocket) socketFactory.createSocket(args[0], 12345);
+                socket = (SSLSocket) sslSocketFactory.createSocket(args[0], 12345);
             } else {
-                clientSocketSSL = (SSLSocket) socketFactory.createSocket(ipPort[0], Integer.parseInt(ipPort[1]));
+                socket = (SSLSocket) sslSocketFactory.createSocket(ipPort[0], Integer.parseInt(ipPort[1]));
             }
 
-            SSLSession session = clientSocketSSL.getSession( );
-
-            // verify the certificate from server  //TODO maybe verify from truststore
-            if (session != null) {
-                // Get the server's certificate chain
-                java.security.cert.Certificate[] chain = session.getPeerCertificates();
-                if (chain != null) {
-                    // Verify the server's certificate
-                    String alias = trustStore.getCertificateAlias(chain[0]);
-                    Certificate serverCert = (Certificate) trustStore.getCertificate(alias);
-                    chain[0].verify(serverCert.getPublicKey());
-                }
-            }
+            socket.startHandshake();
 
             Scanner sc = new Scanner(System.in);
-
             //streams
 
-            ObjectInputStream inStream = new ObjectInputStream(clientSocketSSL.getInputStream());
-            ObjectOutputStream outStream = new ObjectOutputStream(clientSocketSSL.getOutputStream());
+            ObjectInputStream inStream = new ObjectInputStream(socket.getInputStream());
+            ObjectOutputStream outStream = new ObjectOutputStream(socket.getOutputStream());
 
             //authentication
             outStream.writeObject(userID);
+            System.out.println("id enviado");
 
             boolean newUser = false;
             long nonce = 0;
 
             String answer = (String) inStream.readObject();
-            String[] split = answer.split(":");
+            System.out.println(answer);
+            String[] split = answer.split(":"); //split flag
+            nonce = Long.parseLong(split[0]);
 
             if (split.length == 2) {
-                nonce = Integer.parseInt(split[0]);
+                System.out.println("new user");
                 newUser = true;
             } else {
-                nonce = Integer.parseInt(split[0]);
+                System.out.println("known user"); //TODO remove after tests
             }
+            //System.out.println(inStream.readObject());
 
             // create signature from private key
-            signature = Signature.getInstance("MD5withRSA");
+            signature = Signature.getInstance("SHA256withRSA");
             signature.initSign(privateKey);
 
             if (newUser) {
 
                 // adicionar certificate do client a trustStore
-                trustStore.setCertificateEntry("user" + userID + "_cert", (java.security.cert.Certificate) cert);
+                trustStore.setCertificateEntry("user" + userID + "_cert", cert);
 
+                //send nonce
                 outStream.writeObject(nonce);
-                outStream.writeObject(signature);
+
+                // Generate the signature for the data to sign
+                byte[] data = "Hello, server!".getBytes();
+                signature.update(data);
+                byte[] signatureBytes = signature.sign();
+                outStream.writeObject(signatureBytes);
+
+                //send certificate
                 outStream.writeObject(cert);
 
             } else {
@@ -141,7 +153,7 @@ public class Tintolmarket {
 
                 //print menu
                 System.out.print(inStream.readObject());
-                
+
                 // get command from system in
                 String command = sc.nextLine();
 
@@ -150,7 +162,7 @@ public class Tintolmarket {
                 if (splitCommand[0].equals("add") || splitCommand[0].equals("a")) {
 
                     outStream.writeObject(command); //send command
-                    
+
                     BufferedReader br = new BufferedReader(new FileReader("./data_bases/wines.txt"));
                     String line;
                     boolean exists = false;
@@ -162,24 +174,24 @@ public class Tintolmarket {
                         }
                     }
                     br.close();
-                    
+
                     //only send image file if wine doesn't exist
                     if(!exists) {
 
                         File fileToSend = new File(CLIENT_DIR + splitCommand[2]);
                         FileInputStream fileInputStream = new FileInputStream(fileToSend);
                         InputStream inputFile = new BufferedInputStream(fileInputStream);
-                    
+
                         byte[] buffer = new byte[1024];
                         outStream.writeObject((int) fileToSend.length());
                         int bytesRead;
-                        
+
                         // enviar ficheiro
                         while ((bytesRead = inputFile.read(buffer)) != -1) {
                             outStream.write(buffer, 0, bytesRead); //send file
                             outStream.flush();
                         }
-                        inputFile.close();      
+                        inputFile.close();
                     }
                 } else if (splitCommand[0].equals("view") || splitCommand[0].equals("v")) {
 
@@ -238,7 +250,7 @@ public class Tintolmarket {
 
                     // get the public key from the client to send msg (trustStore)
                     String certAlias = splitCommand[1] + "_key_alias";
-                    Certificate trustedCert = (Certificate) trustStore.getCertificate(certAlias);
+                    java.security.cert.Certificate trustedCert = trustStore.getCertificate(certAlias);
                     PublicKey receiverPublicKey = trustedCert.getPublicKey();
 
                     Cipher cipher = Cipher.getInstance("RSA");
@@ -258,7 +270,7 @@ public class Tintolmarket {
                 if (command.equals("exit")) {
                     System.out.println("\n" + inStream.readObject());
                     sc.close();
-                    clientSocketSSL.close();
+                    socket.close();
                     System.exit(0);
                 } else {
                     //print answer

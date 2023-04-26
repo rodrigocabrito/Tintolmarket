@@ -1,0 +1,32 @@
+byte[] salt = { (byte) 0xc9, (byte) 0x36, (byte) 0x78, (byte) 0x99, (byte) 0x52, (byte) 0x3e, (byte) 0xea, (byte) 0xf2 };
+PBEKeySpec keySpec = new PBEKeySpec(cipherPassword.toCharArray(), salt, 1000); // passw, salt, iterations
+SecretKeyFactory kf = SecretKeyFactory.getInstance("PBEWithHmacSHA256AndAES_128");
+SecretKey key = kf.generateSecret(keySpec);
+mac.init(key);
+
+Cipher cipher = Cipher.getInstance("PBEWithHmacSHA256AndAES_128");
+cipher.init(Cipher.ENCRYPT_MODE, key);
+
+cipher.doFinal("Ola Joana!".getBytes());
+byte[] params = cipher.getParameters().getEncoded();
+AlgorithmParameters p = AlgorithmParameters.getInstance("PBEWithHmacSHA256AndAES_128");
+p.init(params);
+
+byte[] keyEncoded2 = key.getEncoded();
+
+SecretKeySpec keySpec = new SecretKeySpec(keyEncoded2, "PBEWithHmacSHA256AndAES_128");
+Cipher d = Cipher.getInstance("PBEWithHmacSHA256AndAES_128");
+d.init(Cipher.DECRYPT_MODE, keySpec, p);
+
+FileInputStream ffis = new FileInputStream(AUTHENTICATION_FILE_CIF);
+FileOutputStream ffos = new FileOutputStream("temp.txt");
+CipherInputStream cis;
+cis = new CipherInputStream(ffis, d);
+byte[] b1 = new byte[16];
+int i1 = cis.read(b1);
+System.out.println("Este é o i1 fora do while: " + i1);
+while (i1 != -1) {
+    ffos.write(b1, 0, i1);
+    i1 = cis.read(b1);
+    System.out.println("i1 after read: " + i1);
+}

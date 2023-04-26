@@ -3,10 +3,10 @@ public class Transacao {
     private String vinhoName;
     private int nrUnidades;
     private int valor;
-    private String userId;
+    private int userId;
     private final TransacaoType type;
 
-    public Transacao(String vinhoName, int nrUnidades, int valor, String userId, TransacaoType type) {
+    public Transacao(String vinhoName, int nrUnidades, int valor, int userId, TransacaoType type) {
         this.vinhoName = vinhoName;
         this.nrUnidades = nrUnidades;
         this.valor = valor;
@@ -38,11 +38,11 @@ public class Transacao {
         this.valor = valor;
     }
 
-    public String getUserId() {
+    public int getUserId() {
         return userId;
     }
 
-    public void setUserId(String userId) {
+    public void setUserId(int userId) {
         this.userId = userId;
     }
 

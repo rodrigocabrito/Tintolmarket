@@ -9,10 +9,10 @@
 
 public class Utilizador {
     
-    private String id = null;
+    private int id = 0;
     private int balance = 0;
     
-    public Utilizador(String id, int balance) {
+    public Utilizador(int id, int balance) {
         this.id = id;
         this.balance = balance;
     }
@@ -21,7 +21,7 @@ public class Utilizador {
         this.balance += change;
     }
 
-    public String getUserID() {
+    public int getUserID() {
         return this.id;
     }
 
