@@ -7,8 +7,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.*;
+import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.security.spec.InvalidKeySpecException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -52,7 +54,7 @@ public class TintolmarketServer {
     private static final String CHAT_DIR = "./chat/";
 
     // server information
-    private static PublicKey serverPublicKey = null;
+    //private static PublicKey serverPublicKey = null;
     private static PrivateKey serverPrivateKey = null;
     private static Signature serverSignature = null;
     private static KeyStore trustStore = null;
@@ -83,11 +85,11 @@ public class TintolmarketServer {
         }
 
         String serverKeyAlias = "server_key_alias"; // from keyStore
-        String serverCertAlias = "server_cert_alias"; // from trustStore
+        //String serverCertAlias = "server_cert_alias"; // from trustStore
 
         String keyStorePath = KEYSTORE_DIR + keyStoreFileName;
         String trustStorePath = KEYSTORE_DIR + "tintolmarket_trustStore.jks";
-        String defaultPasswordTrustStore = "changeit"; //TODO idk
+        String defaultPasswordTrustStore = "changeit";
 
         // get a trustStore containing the client's trusted certificates (if needed)
         FileInputStream kfile = new FileInputStream(trustStorePath);
@@ -108,8 +110,8 @@ public class TintolmarketServer {
         trustManagerFactory.init(trustStore);
 
         // get self certificate and keys
-        java.security.cert.Certificate cert = keyStore.getCertificate(serverKeyAlias);
-        serverPublicKey = cert.getPublicKey();
+        //java.security.cert.Certificate cert = keyStore.getCertificate(serverKeyAlias);
+        //serverPublicKey = cert.getPublicKey();
         serverPrivateKey = (PrivateKey) keyStore.getKey(serverKeyAlias, keyStorePassword.toCharArray());
         serverSignature = Signature.getInstance("MD5withRSA");
         serverSignature.initSign(serverPrivateKey);
@@ -129,7 +131,7 @@ public class TintolmarketServer {
 
         updateServerMemory();
 
-        verifyIntegrityBlockchain(); //TODO check this
+        verifyIntegrityBlockchain(); //TODO check this (checked)
 
         System.setProperty("javax.net.ssl.keyStore", keyStorePath);
         System.setProperty("javax.net.ssl.keyStorePassword", keyStorePassword);
@@ -142,15 +144,17 @@ public class TintolmarketServer {
 
         // Create an SSL socket factory and set it as the default socket factory
         SSLServerSocketFactory sslServerSocketFactory = sslContext.getServerSocketFactory();
-        SSLServerSocket serverSocket = (SSLServerSocket) sslServerSocketFactory.createServerSocket(port);
+        try (SSLServerSocket serverSocket = (SSLServerSocket) sslServerSocketFactory.createServerSocket(port)) {
 
-        // Create a thread pool to handle multiple client connections concurrently
-        ExecutorService executorService = Executors.newCachedThreadPool();
+            // Create a thread pool to handle multiple client connections concurrently
+            try (ExecutorService executorService = Executors.newCachedThreadPool()) {
 
-        while (true) {
-            System.out.println("Waiting for a connection...");
-            SSLSocket clientSocket = (SSLSocket) serverSocket.accept();
-            executorService.submit(new clientHandlerThread(clientSocket, cipher, key));
+                while (true) {
+                    System.out.println("Waiting for a connection...");
+                    SSLSocket clientSocket = (SSLSocket) serverSocket.accept();
+                    executorService.submit(new clientHandlerThread(clientSocket, cipher, key));
+                }
+            }
         }
         //serverSocket.close();
     }
@@ -158,7 +162,7 @@ public class TintolmarketServer {
     private static void verifyIntegrityBlockchain() throws Exception {
         blockchain.loadBlocks();
 
-        if (blockchain.getBlocks().size() != 0) {
+        if (blockchain.getLastBlock().getNrTransacoes() == 0) {
             if (blockchain.isChainValid()) {
                 System.out.println(" Blockchain valida! \n");
             } else {
@@ -174,8 +178,9 @@ public class TintolmarketServer {
                         sb.append(transacao.toString());
                     }
                     byte[] dataBytes = sb.toString().getBytes();
-                    byte[] signature = sign(dataBytes);
-                    boolean validSignature = verify(dataBytes, signature);
+                    serverSignature.update(dataBytes);
+                    byte[] signature = serverSignature.sign();
+                    boolean validSignature = serverSignature.verify(signature);
 
                     if (validSignature) {
                         System.out.println("Assinatura do bloco com id " + block.getId() + " eh valido \n");
@@ -184,21 +189,9 @@ public class TintolmarketServer {
                     }
                 }
             }
+        } else {
+            System.out.println(" Blockchain vazia! \n");
         }
-    }
-
-    private static byte[] sign(byte[] data) throws Exception {
-        serverSignature.update(data);
-
-        // Generate the digital signature
-        return serverSignature.sign();
-    }
-
-    private static boolean verify(byte[] data, byte[] signature) throws Exception {
-        serverSignature.update(data);
-
-        // Verify the digital signature
-        return serverSignature.verify(signature);
     }
 
     /**
@@ -405,12 +398,12 @@ public class TintolmarketServer {
         System.out.println("  listaForSale updated");
     }
 
-    // TODO check this
+    // TODO check this (talvez cagar nisto)
     private static boolean isCorrupted(String pathToFile, byte[] hashToCompare) throws NoSuchAlgorithmException, IOException {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] hash = digest.digest(Files.readAllBytes(Paths.get(pathToFile)));
 
-        return Arrays.equals(hashToCompare, hash);
+        return !Arrays.equals(hashToCompare, hash);
     }
 
     private static byte[] digestFile(String pathToFile) throws NoSuchAlgorithmException, IOException {
@@ -463,27 +456,17 @@ public class TintolmarketServer {
         private final SSLSocket sslSocket;
         private final Cipher cipher;
         private final SecretKey key;
+        private AlgorithmParameters p = null;
         private static Utilizador ut = null;
         private static PublicKey clientPublicKey = null;
-        private static PrivateKey clientPrivateKey= null;
-        private static Signature clientSignature = null;
 
         private static ObjectOutputStream outStream;
         private static ObjectInputStream inStream;
 
-        private BufferedWriter bwAuthTxt = null; //TODO remove
         private FileOutputStream fosAuthKey = null;
-        private FileInputStream fisAuthTxt = null; //TODO remove
-        private FileOutputStream fosAuthCif = null;
-        private CipherOutputStream cosAuthCif = null;
         private ObjectOutputStream oos = null;
-
-        private BufferedReader brAuthTxt = null; //TODO remove
-        private FileInputStream fisAuthKey = null;
-        private FileOutputStream fosAuthTxt = null; //TODO remove
         private FileInputStream fisAuthCif = null;
         private CipherInputStream cisAuthCif = null;
-        private ObjectInputStream oisKey = null;
 
 
         clientHandlerThread(SSLSocket sslSocket, Cipher cipher, SecretKey key) {
@@ -507,9 +490,8 @@ public class TintolmarketServer {
                 long nonce = random.nextLong() & 0xFFFFFFFFFFFFFFL;
 
                 // for decryption
-                //cipher.doFinal("Ola Joana!".getBytes());
                 byte[] params = cipher.getParameters().getEncoded();
-                AlgorithmParameters p = AlgorithmParameters.getInstance("PBEWithHmacSHA256AndAES_128");
+                p = AlgorithmParameters.getInstance("PBEWithHmacSHA256AndAES_128");
                 p.init(params);
 
                 // write the key to the users.cif file on users.key file
@@ -536,7 +518,7 @@ public class TintolmarketServer {
 
                     // authenticate user
                     if (newUser) {
-                        // enviar nonce com flag de ut desconhecido
+                        // enviar nonce com ‘flag’ de ut desconhecido
                         outStream.writeObject(nonce + ":newUser");
 
                         // receber nonce, assinatura e certificado do cliente
@@ -562,18 +544,16 @@ public class TintolmarketServer {
                             System.exit(-1); //TODO is it supose to exit?
                         }
 
-                    } else { //TODO
+                    } else {
                         outStream.writeObject(Long.toString(nonce));
 
                         String userCertPath = null;
-                        String keyAlias = "user" + userID + "_key_alias";
                         String line;
 
                         // decrypt
                         FileInputStream fisKey = new FileInputStream(AUTHENTICATION_FILE_KEY);
                         ObjectInputStream oisKey = new ObjectInputStream(fisKey);
-                        //byte[] keyEncoded2 = (byte[]) oisKey.readObject();
-                        byte[] keyEncoded2 = key.getEncoded();
+                        byte[] keyEncoded2 = (byte[]) oisKey.readObject();
                         oisKey.close();
 
                         SecretKeySpec keySpec = new SecretKeySpec(keyEncoded2, "PBEWithHmacSHA256AndAES_128");
@@ -585,12 +565,9 @@ public class TintolmarketServer {
                         CipherInputStream cis;
                         cis = new CipherInputStream(ffis, d);
                         byte[] b1 = new byte[1024];
-
-                        int i1 = 0;
-                        System.out.println("Este é o i1 fora do while: " + i1);
+                        int i1;
                         while ((i1 = cis.read(b1)) != -1) {
                             ffos.write(b1, 0, i1);
-                            System.out.println("i1 after read: " + i1);
                         }
 
                         // Read each line from temp.txt (users.cif)
@@ -633,18 +610,10 @@ public class TintolmarketServer {
                         // chave publica do users.txt desse cliente
                         byte[] signedNonce = (byte[]) inStream.readObject();
 
-                        //KeyStore keystore = KeyStore.getInstance("JCEKS");
-                        //keystore.load(new FileInputStream(keyStorePath), null);
-
-                        //KeyStore.Entry entry = trustStore.getEntry(keyAlias, null); //TODO mudar para getKeyEntry
-                        //KeyStore.PrivateKeyEntry privateKeyEntry = (KeyStore.PrivateKeyEntry) entry;
-                        //clientPrivateKey = privateKeyEntry.getPrivateKey();
-
                         FileInputStream fis2 = new FileInputStream(CERTIFICATES_DIR + userCertPath);
                         CertificateFactory cf = CertificateFactory.getInstance("X509");
                         X509Certificate cert = (X509Certificate) cf.generateCertificate(fis2);
-                        //java.security.cert.Certificate[] chain = ((KeyStore.PrivateKeyEntry) entry).getCertificateChain();
-                        //java.security.cert.Certificate[] chain2 = trustStore.getCertificateChain();
+
                         // Get the public key from the certificate from the keystore on users.txt
                         PublicKey publicKey = cert.getPublicKey();
 
@@ -674,58 +643,26 @@ public class TintolmarketServer {
                     // file doesn't exist, create it
                     try {
                         isNewFile = true;
-                        FileWriter fw = new FileWriter(AUTHENTICATION_FILE_CIF);
-                        fw.close();
-                        fisAuthCif = new FileInputStream((AUTHENTICATION_FILE_CIF));
-                        cisAuthCif = new CipherInputStream(fisAuthCif, cipher);
+                        FileOutputStream fos = new FileOutputStream(AUTHENTICATION_FILE_CIF);
+                        fos.close();
                         System.out.println("ficheiro nao existia");
                     } catch (Exception ex) {
                         ex.printStackTrace();
                     }
+                } finally {
+                    fisAuthCif.close();
+                    cisAuthCif.close();
                 }
-
-                StringBuilder sb = new StringBuilder();
-                String line = null;
 
                 // only update users.cif if it's a new user
                 if (newUser) {
-                    /*
-                    BufferedWriter bw = new BufferedWriter(new FileWriter(AUTHENTICATION_FILE_CIF));
-                    bw.write(userID + ":" + "user" + userID + "_certificate.cer" + "\n");
-
-                    bw.close();
-                    */
-                    /*
-                    // Create CipherInputStream to read encrypted .cif file
-                    FileInputStream fis = new FileInputStream(AUTHENTICATION_FILE_CIF);
-                    CipherInputStream cis = new CipherInputStream(fis, cipher);
-
-                    // Read each line from the CipherInputStream
-                    BufferedReader br = new BufferedReader(new InputStreamReader(cis));
-
-                    //TODO check talk (use same method)
-                    while (((line = br.readLine()) != null)) {
-                        sb.append(line + "\n");
-                    }
-                    br.close();
-
-                    sb.append(userID + ":" + "user" + userID + "_certificate.cer" + "\n");
-
-                    fosAuthCif = new FileOutputStream(AUTHENTICATION_FILE_CIF);
-                    cosAuthCif = new CipherOutputStream(fosAuthCif, cipher);
-
-                    //update cif file with new user
-                    cosAuthCif.write(sb.toString().getBytes());
-                    cosAuthCif.close();
-                    */
 
                     if (!isNewFile) {
 
                         // decrypt
                         FileInputStream fisKey = new FileInputStream(AUTHENTICATION_FILE_KEY);
                         ObjectInputStream oisKey = new ObjectInputStream(fisKey);
-                        //byte[] keyEncoded3 = (byte[]) oisKey.readObject();
-                        byte[] keyEncoded3 = key.getEncoded();
+                        byte[] keyEncoded3 = (byte[]) oisKey.readObject();
                         oisKey.close();
 
                         SecretKeySpec keySpec = new SecretKeySpec(keyEncoded3, "PBEWithHmacSHA256AndAES_128");
@@ -908,7 +845,7 @@ public class TintolmarketServer {
                 if (isCorrupted(CHAT_DIR + "user" + receiverId + ".cif", hash)) {
                     System.out.println("Tudo ok com o ficheiro user " + receiverId + ".cif \n");
                 } else {
-                    System.out.println("Ficheiro chat.cif corrupto! \n");
+                    System.out.println("Ficheiro user" + receiverId + ".cif corrupto! \n");
                 }
 
                 // Write the new data to the CipherOutputStream
@@ -1008,20 +945,23 @@ public class TintolmarketServer {
                             outStream.writeObject("O vinho que deseja vender nao existe! \n");
 
                         } else if (TintolmarketServer.forSale.size() == 0) {
+
+                            outStream.writeObject("All good!\n");
                             ArrayList<Sale> sales = new ArrayList<>();
                             sales.add(new Sale(wine, Integer.parseInt(splitCommand[2]),
                                     Integer.parseInt(splitCommand[3])));
                             TintolmarketServer.forSale.put(ut, sales);
-                            outStream.writeObject("Vinho colocado a venda! \n");
 
                             Transacao tSell = new Transacao(wine.getName(), Integer.parseInt(splitCommand[3]),
                                     Integer.parseInt(splitCommand[2]), ut.getUserID(), TransacaoType.SELL);
 
                             // verificar assinatura pelo cliente
-                            // TODO client envia assinatura assinada com "venda" e aqui verifica-se como foi feito na cena do nonce
-                            clientSignature.update(tSell.toString().getBytes());
-                            byte[] signatureBytes = clientSignature.sign();
-                            boolean verifiedSignature = clientSignature.verify(signatureBytes);
+
+                            // get signature signed with tSell data
+                            byte[] sellBytes = tSell.toString().getBytes();
+                            outStream.writeObject(sellBytes);
+
+                            boolean verifiedSignature = inStream.readBoolean();
 
                             if (verifiedSignature) {
                                 blockchain.addTransacao(tSell, serverSignature);
@@ -1030,12 +970,15 @@ public class TintolmarketServer {
                                 outStream.writeObject("Assinatura inválida! Transacao nao processada! \n");
                             }
 
+                            outStream.writeObject("Vinho colocado a venda! \n");
+
                         } else {
                             boolean updated = false;
                             for (HashMap.Entry<Utilizador,ArrayList<Sale>> entry : TintolmarketServer.forSale.entrySet()) {
                                 Utilizador u = entry.getKey();
 
                                 if (u.getUserID() == ut.getUserID()) {
+                                    outStream.writeObject("Sem transacao");
 
                                     ArrayList<Sale> sales = entry.getValue();
                                     for (Sale sale : sales) {
@@ -1059,6 +1002,7 @@ public class TintolmarketServer {
                             //if it was not a sale to update
                             if (!updated) {
 
+                                outStream.writeObject("All good!\n");
                                 ArrayList<Sale> sales = TintolmarketServer.forSale.get(ut);
 
                                 if (sales == null) {
@@ -1068,15 +1012,15 @@ public class TintolmarketServer {
                                 sales.add(new Sale(wine, Integer.parseInt(splitCommand[2]),
                                         Integer.parseInt(splitCommand[3])));
                                 TintolmarketServer.forSale.put(ut, sales);
-                                outStream.writeObject("Vinho colocado a venda! \n");
 
                                 Transacao tSell = new Transacao(wine.getName(), Integer.parseInt(splitCommand[3]),
                                         Integer.parseInt(splitCommand[2]), ut.getUserID(), TransacaoType.SELL);
 
-                                // verificar assinatura pelo cliente
-                                clientSignature.update(tSell.toString().getBytes());
-                                byte[] signatureBytes = clientSignature.sign();
-                                boolean verifiedSignature = clientSignature.verify(signatureBytes);
+                                // get signature signed with tSell data
+                                byte[] sellBytes = tSell.toString().getBytes();
+                                outStream.writeObject(sellBytes);
+
+                                boolean verifiedSignature = inStream.readBoolean();
 
                                 if (verifiedSignature) {
                                     blockchain.addTransacao(tSell, serverSignature);
@@ -1084,6 +1028,8 @@ public class TintolmarketServer {
                                 } else {
                                     outStream.writeObject("Assinatura inválida! Transacao nao processada! \n");
                                 }
+
+                                outStream.writeObject("Vinho colocado a venda! \n");
                             }
                         }
                     }
@@ -1185,6 +1131,8 @@ public class TintolmarketServer {
                                             outStream.writeObject("Saldo insuficiente! \n");
 
                                         } else {
+
+                                            outStream.writeObject("All good!\n");
                                             sale.updateQuantity(-(Integer.parseInt(splitCommand[3])));
                                             ut.updateWallet(-(sale.getValue() * (Integer.parseInt(splitCommand[3])))); // comprador
                                                                                                                        // desconta
@@ -1196,15 +1144,14 @@ public class TintolmarketServer {
                                                                                                             // dinheiro
                                             sold = true;
 
-                                            outStream.writeObject("Compra realizada com sucesso! \n");
-
                                             Transacao tBuy = new Transacao(sale.getWine().getName(), Integer.parseInt(splitCommand[3]),
                                                     sale.getValue(), ut.getUserID(), TransacaoType.BUY);
 
-                                            // verificar assinatura pelo cliente
-                                            clientSignature.update(tBuy.toString().getBytes());
-                                            byte[] signatureBytes = clientSignature.sign();
-                                            boolean verifiedSignature = clientSignature.verify(signatureBytes);
+                                            // get signature signed with tSell data
+                                            byte[] buyBytes = tBuy.toString().getBytes();
+                                            outStream.writeObject(buyBytes);
+
+                                            boolean verifiedSignature = inStream.readBoolean();
 
                                             if (verifiedSignature) {
                                                 blockchain.addTransacao(tBuy, serverSignature);
@@ -1212,6 +1159,8 @@ public class TintolmarketServer {
                                             } else {
                                                 outStream.writeObject("Assinatura inválida! Transacao nao processada! \n");
                                             }
+
+                                            outStream.writeObject("Compra realizada com sucesso! \n");
 
                                             // remover venda com quantidade 0
                                             if (sale.getQuantity() == 0) {
@@ -1286,8 +1235,10 @@ public class TintolmarketServer {
                         outStream.writeObject("O utilizador nao existe! \n");
                     } else {
                         try {
-                            Cipher cipher = Cipher.getInstance("RSA");
-                            cipher.init(Cipher.ENCRYPT_MODE, clientPublicKey); //TODO trocar para o receiver public key
+                            PublicKey receiverPublicKey = getCertificatePublicKey(receiver.getUserID());
+
+                            Cipher cipher = Cipher.getInstance("PBEWithHmacSHA256AndAES_128"); //TODO guardar params de encrypt num ficheiro
+                            cipher.init(Cipher.ENCRYPT_MODE, receiverPublicKey);
 
                             updateChat(receiver.getUserID(), encryptedMessage, cipher);
 
@@ -1308,25 +1259,28 @@ public class TintolmarketServer {
                     outStream.writeObject("Comando invalido! A operacao read nao necessita de argumentos. \n");
 
                 } else {
+                    outStream.writeObject("All good!\n");
+                    PrivateKey clientPrivateKey = (PrivateKey) inStream.readObject();
+
                     try {
                         File chatDIr = new File("chat");
                         File[] chatFiles = chatDIr.listFiles((CHAT_DIR, name) -> name.endsWith(".cif"));
 
-                        Cipher cipher = Cipher.getInstance("RSA");
-                        cipher.init(Cipher.DECRYPT_MODE, clientPrivateKey); //TODO client envia a propria privateKey
+                        Cipher cipher = Cipher.getInstance("PBEWithHmacSHA256AndAES_128");
+                        cipher.init(Cipher.DECRYPT_MODE, clientPrivateKey, p); //TODO get the params from the file
 
-                        boolean empty = true;
-                        String messages = "";
+                        boolean hasMessages = false;
+                        String messages = null;
 
                         if (chatFiles != null) {
                             // Read each .cif file in chat directory
                             for (File chatFile : chatFiles) {
                                 if (chatFile.getName().contains(Integer.toString(ut.getUserID()))) {
-                                    empty = false;
+                                    hasMessages = true;
 
                                     CipherInputStream cis = new CipherInputStream(new FileInputStream(chatFile), cipher);
-                                    StringBuilder sb = new StringBuilder();
                                     BufferedReader reader = new BufferedReader(new InputStreamReader(cis, StandardCharsets.UTF_8));
+                                    StringBuilder sb = new StringBuilder();
                                     String line;
                                     while ((line = reader.readLine()) != null) {
                                         sb.append(line);
@@ -1339,15 +1293,17 @@ public class TintolmarketServer {
                                     cis.close();
 
                                     // delete the .cif file after reading it
-                                    chatFile.delete();
+                                    chatFile.delete(); //TODO verufy if deletes
                                 }
                             }
 
-                            if (empty) {
+                            if (!hasMessages) {
                                 outStream.writeObject("Nao tem mensagens por ler! \n");
                             } else {
-                                outStream.writeObject(messages + "\n"); // TODO create message with all messages
+                                outStream.writeObject(messages + "\n");
                             }
+                        } else {
+                            outStream.writeObject("Nao tem mensagens por ler! \n");
                         }
                     } catch (Exception e) {
                         e.printStackTrace();
@@ -1364,7 +1320,7 @@ public class TintolmarketServer {
 
                 } else {
                     StringBuilder sb = new StringBuilder();
-                    if (blockchain.getBlocks() != null) {
+                    if (blockchain.getBlocks().size() != 0) {
                         for (Block block : blockchain.getBlocks()) {
 
                             if (block.getTransacoes() != null) {
@@ -1375,6 +1331,9 @@ public class TintolmarketServer {
                                 }
                             }
                         }
+                        outStream.writeObject(sb.toString());
+                    } else {
+                        sb.append("Nenhuma transacao na blockchain! \n");
                         outStream.writeObject(sb.toString());
                     }
                 }
@@ -1450,6 +1409,13 @@ public class TintolmarketServer {
                 outStream.flush();
             }
             inputFile.close();
+        }
+
+        private PublicKey getCertificatePublicKey(int receiverID) throws IOException, CertificateException {
+            FileInputStream fis = new FileInputStream(CERTIFICATES_DIR + "user" + receiverID + "_certificate.cer");
+            CertificateFactory cf = CertificateFactory.getInstance("X509");
+            X509Certificate cert = (X509Certificate) cf.generateCertificate(fis);
+            return cert.getPublicKey();
         }
 
         /**

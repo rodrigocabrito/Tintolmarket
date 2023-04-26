@@ -262,6 +262,30 @@ public class Tintolmarket {
                     String message = "Mensagem de user" + userID + ": " + txt + "\n";
                     byte[] encryptedMsg = cipher.doFinal(message.getBytes());
                     outStream.writeObject(encryptedMsg);    //send encrypted msg
+
+                } else if (splitCommand[0].equals("sell") || splitCommand[0].equals("s") ||
+                                    splitCommand[0].equals("buy") || splitCommand[0].equals("b")){
+
+                    outStream.writeObject(command); //send command
+
+                    if (inStream.readObject().equals("All good!")){
+                        byte[] transactionBytes = (byte[]) inStream.readObject();
+                        signature.update(transactionBytes);
+                        byte[] signedSellBytes = signature.sign();
+                        boolean verifiedSignature = signature.verify(signedSellBytes);
+
+                        outStream.writeObject(verifiedSignature);
+
+                        // transacao processada com sucesso/assinatura invalida
+                        System.out.println(inStream.readObject());
+                    }
+                } else if (splitCommand[0].equals("read") || splitCommand[0].equals("r")){
+
+                    outStream.writeObject(command); //send command
+
+                    if (inStream.readObject().equals("All good!")) {
+                        outStream.writeObject(privateKey);
+                    }
                 } else {
                     outStream.writeObject(command); //send command
                 }

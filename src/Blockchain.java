@@ -1,6 +1,7 @@
 import java.io.*;
 import java.security.Signature;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class Blockchain {
@@ -30,29 +31,26 @@ public class Blockchain {
     }
 
     public boolean isChainValid() {
-        for (int i = 1; i < blocks.size(); i++) {
-            Block currentBlock = blocks.get(i);
-            Block previousBlock = blocks.get(i - 1);
+        if (blocks.size() != 1) {
+            for (int i = 1; i < blocks.size(); i++) {
+                Block currentBlock = blocks.get(i);
+                Block previousBlock = blocks.get(i - 1);
 
-            currentBlock.setHash(previousBlock.getHash());
-
-            if (!currentBlock.getHash().equals(previousBlock.calculateHash())) {
-                System.out.println("Bloco com id " + i + " tem hash errado.");
-                return false;
+                if (!currentBlock.getHash().equals(previousBlock.calculateHash())) {
+                    System.out.println("Bloco com id " + i + " tem hash errado.");
+                    return false;
+                }
             }
-            // maybe remove
-            if (!currentBlock.getHash().equals(previousBlock.getHash())) {
-                System.out.println("Block " + i + " has an invalid previous hash.");
-                return false;
-            }
+        } else {
+            return getLastBlock().getHash().equals(Arrays.toString(new byte[32]));
         }
         return true;
     }
 
     public void loadBlocks() {
         // Load all the .blk files from the blocks directory
-        File blkDir = new File("blockchain");
-        File[] blkFiles = blkDir.listFiles((BLOCKCHAIN_DIR, name) -> name.endsWith(".blk"));
+        File blkDir = new File(BLOCKCHAIN_DIR);
+        File[] blkFiles = blkDir.listFiles((dir, name) -> name.endsWith(".blk"));
         if (blkFiles != null) {
             // Read each .blk file and create a Block object from it
             for (File blkFile : blkFiles) {
