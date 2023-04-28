@@ -1,4 +1,10 @@
-import java.security.SignedObject;
+
+/**
+ * Transacao class. Represents a transaction in the TintolmarketServer.
+ * @author Rodrigo Cabrito 54455
+ * @author João Costa 54482
+ * @author João Fraga 44837
+ */
 
 public class Transacao {
 
@@ -16,6 +22,11 @@ public class Transacao {
         this.type = type;
     }
 
+    /**
+     * Converts a string to a Transacao object.
+     * @param str given string
+     * @return Transacao object
+     */
     public static Transacao fromString(String str) {
         String[] split = str.split(",");
 
@@ -28,6 +39,10 @@ public class Transacao {
         return new Transacao(name, quantity, value, userID, type);
     }
 
+    /**
+     * Converts a Transacao object to a string with the fields separated by commas.
+     * @return the string with the fields separated by commas
+     */
     public String toStringBlkFile() {
         return type + "," + vinhoName + "," + quantity + "," + value + "," + userId;
     }
@@ -39,21 +54,5 @@ public class Transacao {
                 "\n unidades: " + quantity +
                 "\n valor: " + value +
                 "\n user: " + userId;
-    }
-
-    public void updateQuantity(int quantity) {
-        this.quantity += quantity;
-    }
-
-    public void updateValue(int value) {
-        this.value = value;
-    }
-
-    public TransacaoType getType() {
-        return this.type;
-    }
-
-    public String getVinhoName() {
-        return this.vinhoName;
     }
 }

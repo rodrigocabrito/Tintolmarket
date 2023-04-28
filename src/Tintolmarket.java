@@ -1,28 +1,25 @@
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
 import javax.net.ssl.*;
 import java.io.*;
 import java.security.*;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
-import java.util.Arrays;
 import java.util.Scanner;
 
-/*
- * @authors:
- *      Rodrigo Cabrito 54455
- *      João Costa 54482
- *      João Fraga 44837
+/**
+ * Tintolmarket class. Represents a client to access the TintolmarketServer server.
+ * @author Rodrigo Cabrito 54455
+ * @author João Costa 54482
+ * @author João Fraga 44837
  */
 
 public class Tintolmarket {
 
-    private static final String CLIENT_DIR = "./client_files/"; //debug
-    private static final String KEYSTORE_DIR = "./keystores/"; //debug
-    private static final String CERTIFICATE_DIR = "./certificates/"; //debug
+    private static final String CLIENT_DIR = "./client_files/";
+    private static final String KEYSTORE_DIR = "./keystores/";
+    private static final String CERTIFICATE_DIR = "./certificates/";
 
-    private static PublicKey publicKey = null;
     private static PrivateKey privateKey = null;
     private static KeyStore trustStore = null;
     private static java.security.cert.Certificate cert = null;
@@ -35,13 +32,7 @@ public class Tintolmarket {
             String keyStoreFileName = args[2];
             String keyStorePassword = args[3];
             int userID = Integer.parseInt(args[4]);
-             //debug
-/*
-            String trustStoreFileName = "tintolmarket_trustStore.jks";
-            String keyStoreFileName = "user2_keyStore.jks";
-            String keyStorePassword = "user2_keyStore_passw";
-            int userID = 2;
-*/
+
             String keyAlias = "user" + userID + "_key_alias";
             String defaultPasswordTrustStore = "changeit";
 
@@ -69,7 +60,6 @@ public class Tintolmarket {
 
             // get self certificate and keys
             cert = keyStore.getCertificate(keyAlias);
-            publicKey = cert.getPublicKey();
             privateKey = (PrivateKey) keyStore.getKey(keyAlias, keyStorePassword.toCharArray());
 
             System.setProperty("javax.net.ssl.keyStore", keyStorePath);
@@ -80,14 +70,6 @@ public class Tintolmarket {
             // Create an SSL socket factory and set it as the default socket factory
             SSLSocketFactory sslSocketFactory = sslContext.getSocketFactory();
             SSLSocket socket = null;
-
-            /*
-            String[] ipPort = args[0].split(":");
-            if (ipPort.length == 1) {
-                socket = (SSLSocket) sslSocketFactory.createSocket(args[0], 12345);
-            } else {
-                socket = (SSLSocket) sslSocketFactory.createSocket(ipPort[0], Integer.parseInt(ipPort[1]));
-            }*/ //debug
 
             String host = "localhost";
             socket = (SSLSocket) sslSocketFactory.createSocket(host, 12345);
@@ -257,7 +239,7 @@ public class Tintolmarket {
                     if (inStream.readObject().equals("All good!")) {
 
                         // get the public key from the client to send msg (trustStore)
-                        FileInputStream fis = new FileInputStream(CERTIFICATE_DIR + "user" + userID + "_certificate.cer");
+                        FileInputStream fis = new FileInputStream(CERTIFICATE_DIR + "user" + userID + "_certificate.cert");
                         CertificateFactory cf = CertificateFactory.getInstance("X509");
                         X509Certificate cert = (X509Certificate) cf.generateCertificate(fis);
                         PublicKey receiverPublicKey = cert.getPublicKey();
@@ -290,11 +272,10 @@ public class Tintolmarket {
 
                     String answer2 = (String) inStream.readObject();
 
-                   if (answer2.equals("Nova transacao!")){
+                   if (answer2.equals("Nova transacao!") || answer2.equals("Venda para dar update!")) {
                        byte[] transactionBytes = (byte[]) inStream.readObject();
                        signature.update(transactionBytes);
                        byte[] signedSellBytes = signature.sign();
-                       //boolean verifiedSignature = signature.verify(signedSellBytes);
 
                        outStream.writeObject(signedSellBytes);
                    }

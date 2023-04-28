@@ -5,12 +5,20 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * Block class. Represents a block in the blockchain.
+ * @author Rodrigo Cabrito 54455
+ * @author João Costa 54482
+ * @author João Fraga 44837
+ */
+
 public class Block {
 
     private String hash;
     private final long id;
     private long nrTransacoes;
     private final List<Transacao> transacoes;
+    private byte[] bytesAssinatura;
     private Signature assinatura;
 
 
@@ -34,16 +42,40 @@ public class Block {
         this.assinatura = assinatura;
     }
 
+    /**
+     * Adds a transaction to the block.
+     * @param transacao given transaction to add
+     */
+    public void addTransacao(Transacao transacao) {
+        this.transacoes.add(transacao);
+        this.nrTransacoes++;
+    }
+
+    /**
+     * Closes the block, storing the block's data, signed by the server.
+     * @param bytesAssinatura given block's data signed by the server
+     * @throws SignatureException if an error occurs while signing the block.
+     */
+    public void closeBlock(byte[] bytesAssinatura) throws SignatureException {
+        this.bytesAssinatura = bytesAssinatura;
+    }
+
+    /**
+     * Calculates the hash of the block.
+     * @return a String containing the block's hash.
+     */
     public String calculateHash() {
         StringBuilder sb = new StringBuilder();
+        sb.append(hash);
+        sb.append(id);
+        sb.append(nrTransacoes);
         for (Transacao transacao : transacoes) {
-            sb.append(transacao.toStringBlkFile());
+            sb.append(transacao.toString());
         }
 
-        String dataToHash = sb + assinatura.toString();
+        String dataToHash = sb.toString();
         String hash = null;
 
-        //TODO verificar metodo de fazer calculateHash
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] bytes = digest.digest(dataToHash.getBytes(StandardCharsets.UTF_8));
@@ -58,19 +90,14 @@ public class Block {
         return hash;
     }
 
-    public void addTransacao(Transacao transacao) {
-        this.transacoes.add(transacao);
-        this.nrTransacoes++;
-    }
-
-    public void closeBlock(Signature assinatura) {
-        this.assinatura = assinatura;
-    }
-
+    /**
+     * Converts a block to an array of bytes.
+     * @return the bytes representing the block.
+     * @throws IOException if an error occurs while converting the block.
+     */
     public byte[] toByteArray() throws IOException {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
-        ObjectOutputStream oos = new ObjectOutputStream(bos);
 
         try {
             // Serialize the block data to the byte array
@@ -80,8 +107,8 @@ public class Block {
             for (Transacao transacao : transacoes) {
                 dos.writeUTF(transacao.toStringBlkFile());
             }
-            if (assinatura != null) {
-                oos.writeObject(assinatura);
+            if (bytesAssinatura != null) {
+                dos.write(bytesAssinatura);
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -89,12 +116,16 @@ public class Block {
         return bos.toByteArray();
     }
 
-    public static Block fromByteArray(byte[] data, PrivateKey serverPrivateKey) throws IOException, InvalidKeyException, NoSuchAlgorithmException {
+    /**
+     * Converts an array of bytes to a block.
+     * @return the block represented by the bytes.
+     * @throws IOException if an error occurs while converting the array of bytes.
+     */
+    public static Block fromByteArray(byte[] data, PrivateKey serverPrivateKey) throws IOException, InvalidKeyException, NoSuchAlgorithmException, SignatureException {
 
         // Create an input stream to read the block data
         ByteArrayInputStream bis = new ByteArrayInputStream(data);
         DataInputStream dis = new DataInputStream(bis);
-        ObjectInputStream ois = new ObjectInputStream(bis);
 
         // Read the block data from the input stream and create a Block object
         String hash = dis.readUTF();
@@ -106,43 +137,20 @@ public class Block {
             transacoes.add(Transacao.fromString(transacaoString));
         }
 
-        //Signature serverSignature = Signature.getInstance("SHA256withRSA");
-        //serverSignature.initSign(serverPrivateKey);
         Signature serverSignature = null;
+
         if (nrTransacoes == 5) {
-            Signature assinatura = null;
 
             serverSignature = Signature.getInstance("SHA256withRSA");
             serverSignature.initSign(serverPrivateKey);
-            try {
-                assinatura = (Signature) ois.readObject();
-            } catch (IOException | ClassNotFoundException e) {
-                // The signature is not present in the block data
-            }
         }
-
-        /*
-        ByteArrayInputStream bis = new ByteArrayInputStream(data);
-        DataInputStream dis = new DataInputStream(bis);
-
-        String hash = dis.readUTF();
-        long id = dis.readLong();
-        long nrTransacoes = dis.readLong();
-        List<Transacao> transacoes = new ArrayList<>();
-        int i = 0;
-        while (i < nrTransacoes) {
-            String transacaoString = dis.readUTF();
-            Transacao transacao = Transacao.fromString(transacaoString);
-            transacoes.add(transacao);
-            i++;
-        }
-
-        Signature serverSignature = Signature.getInstance("SHA256withRSA");
-        serverSignature.initSign(serverPrivateKey);
-        */
         return new Block(hash, id, nrTransacoes, transacoes, serverSignature);
     }
 
+    /**
+     * Checks if the block is full.
+     * @return {@code true} if the block is full, {@code false} otherwise.
+     */
     public boolean isBlockFull() {
         return this.nrTransacoes == 5;
     }
@@ -165,5 +173,17 @@ public class Block {
 
     public List<Transacao> getTransacoes() {
         return transacoes;
+    }
+
+    public byte[] getSignatureBytes() {
+        return bytesAssinatura;
+    }
+
+    public void setSignatureBytes(byte[] bytesAssinatura) {
+        this.bytesAssinatura = bytesAssinatura;
+    }
+
+    public Signature getSignature() {
+        return assinatura;
     }
 }

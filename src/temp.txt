@@ -1,2 +1,0 @@
-1:user1_certificate.cer
-2:user2_certificate.cer

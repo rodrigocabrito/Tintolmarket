@@ -1,28 +1,32 @@
 import java.io.*;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
-import java.security.Signature;
+import java.security.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * Blockchain class. Represents a blockchain of blocks.
+ * @author Rodrigo Cabrito 54455
+ * @author João Costa 54482
+ * @author João Fraga 44837
+ */
+
 public class Blockchain {
 
+    private final String BLOCKCHAIN_DIR = "./blockchain/";
     private final List<Block> blocks;
-    private final String BLOCKCHAIN_DIR = "./src/blockchain/";
+
 
     public Blockchain() {
         this.blocks = new ArrayList<>();
         this.blocks.add(new Block(1));
     }
 
-    public void addBlock(Block block) {
-        Block previousBlock = blocks.get(blocks.size() - 1);
-        block.setHash(previousBlock.calculateHash());
-        blocks.add(block);
-    }
-
+    /**
+     * Updates the .blk file with the information of the block.
+     * @param block given block
+     * @throws IOException if an error occurs writing to the .blk file
+     */
     public void updateBlockFile(Block block) throws IOException {
         // Write the block data to a new .blk file
         File blkFile = new File(BLOCKCHAIN_DIR, "block_" + block.getId() + ".blk");
@@ -33,6 +37,10 @@ public class Blockchain {
         outputStream.close();
     }
 
+    /**
+     * Verifies if the blockchain is valid.
+     * @return {@code true} if the blockchain is valid, {@code false} otherwise
+     */
     public boolean isChainValid() {
         if (blocks.size() != 1) {
             for (int i = 1; i < blocks.size(); i++) {
@@ -50,6 +58,13 @@ public class Blockchain {
         return true;
     }
 
+    /**
+     * Populates the blockchain with the blocks stored in the blockchain directory, specifically in the .blk files.
+     * @param serverPrivateKey given server private key
+     * @throws NoSuchAlgorithmException if an error occurs while parsing the file to a block.
+     * @throws InvalidKeyException if an error occurs while parsing the file to a block.
+     * @throws FileNotFoundException if the directory does not exist.
+     */
     public void loadBlocks(PrivateKey serverPrivateKey) throws NoSuchAlgorithmException, InvalidKeyException, FileNotFoundException {
         // Load all the .blk files from the blocks directory
         File blkDir = new File(BLOCKCHAIN_DIR);
@@ -76,38 +91,15 @@ public class Blockchain {
                     inputStream.readFully(blockData);
 
                     Block block = Block.fromByteArray(blockData, serverPrivateKey);
-
-                    /*
-                    // Create an input stream to read the block data
-                    ByteArrayInputStream bis = new ByteArrayInputStream(blockData);
-                    DataInputStream dis = new DataInputStream(bis);
-                    ObjectInputStream ois = new ObjectInputStream(bis);
-
-                    // Read the block data from the input stream and create a Block object
-                    String hash = dis.readUTF();
-                    long id = dis.readLong();
-                    int nrTransacoes = dis.readInt();
-                    List<Transacao> transacoes = new ArrayList<>();
-                    for (int i = 0; i < nrTransacoes; i++) {
-                        String transacaoString = dis.readUTF();
-                        transacoes.add(Transacao.fromString(transacaoString));
+                    if (block.getSignature() != null) {
+                        Signature signature = block.getSignature();
+                        signature.update(block.toByteArray());
+                        block.setSignatureBytes(signature.sign());
                     }
 
-                    //Signature serverSignature = Signature.getInstance("SHA256withRSA");
-                    //serverSignature.initSign(serverPrivateKey);
-
-                    Signature assinatura = null;
-                    try {
-                        assinatura = (Signature) ois.readObject();
-                    } catch (IOException | ClassNotFoundException e) {
-                        // The signature is not present in the block data
-                    }
-
-                    Block block = new Block(hash, id, nrTransacoes, transacoes, assinatura);
-                    */
                     blocks.add(block);
 
-                } catch (IOException e) {
+                } catch (IOException | SignatureException e) {
                     throw new RuntimeException(e);
                 } finally {
                     // Close the input stream
@@ -117,53 +109,47 @@ public class Blockchain {
                         // Ignore
                     }
                 }
-
-
-
-
-
-
-
-
-                /*
-                try (FileInputStream fis = new FileInputStream(blkFile);
-                     BufferedInputStream bis = new BufferedInputStream(fis);
-                     DataInputStream ois = new DataInputStream(bis)) {
-
-                    // Read the block data from the file and deserialize it
-                    byte[] blockData = new byte[ois.readInt()];
-                    ois.readFully(blockData);
-                    Block block = Block.fromByteArray(blockData, serverPrivateKey);
-
-                    // Add the block to the blockchain
-                    blocks.add(block);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-                */
             }
         }
     }
 
-    public void addTransacao(Transacao transacao, Signature signature) throws IOException {
+    /**
+     * Adds a transaction to the blockchain.
+     * @param transacao given transaction
+     * @param signature given server's signature.
+     * @throws IOException if an error occurs while writing to the .blk file
+     * @throws SignatureException if an error occurs while signing the last block of the blockchain.
+     */
+    public void addTransacao(Transacao transacao, Signature signature) throws IOException, SignatureException {
         Block lastBlock = getLastBlock();
         lastBlock.addTransacao(transacao);
         updateBlockFile(getLastBlock());
 
         if (isLastBlockFull()) {
-            lastBlock.closeBlock(signature);
+            signature.update(lastBlock.toByteArray());
+            lastBlock.closeBlock(signature.sign());
             updateBlockFile(getLastBlock());
             this.blocks.add(new Block(lastBlock.getId() + 1));
             lastBlock = getLastBlock();
             Block previousLastBlock = blocks.get(blocks.size() - 2);
             lastBlock.setHash(previousLastBlock.calculateHash());
+            System.out.println("o bloco com id " + previousLastBlock.getId() + " tem hash: " + previousLastBlock.calculateHash());
+            System.out.println("o bloco com id " + lastBlock.getId() + " tem hash: " + lastBlock.getHash());
         }
     }
 
+    /**
+     * Checks if the last block of the blockchain is full.
+     * @return {@code true} if the last block of the blockchain is full, {@code false} otherwise
+     */
     public boolean isLastBlockFull() {
         return getLastBlock().getNrTransacoes() == 5;
     }
 
+    /**
+     * Returns the last block of the blockchain.
+     * @return the last block of the blockchain
+     */
     public Block getLastBlock() {
         return this.blocks.get(blocks.size() - 1);
     }
