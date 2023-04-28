@@ -40,6 +40,8 @@ USER1_KEY_ALIAS="user1_key_alias"
 # Concatenate the path and filename to create the full path to the keystore file
 USER1_KEYSTORE_PATH="$KEYSTORE_DIR/$USER1_KEYSTORE_FILE"
 
+################################################################################################################################################################
+
 # Specify the keystore file name
 USER2_KEYSTORE_FILE="user2_keyStore.jks"
 
@@ -52,15 +54,45 @@ USER2_KEYSTORE_PATH="$KEYSTORE_DIR/$USER2_KEYSTORE_FILE"
 
 ################################################################################################################################################################
 
+# Specify the keystore file name
+USER3_KEYSTORE_FILE="user3_keyStore.jks"
+
+# Specify the alias and password for the key pair
+USER3_KEYSTORE_PASSWORD="user3_keyStore_passw"
+USER3_KEY_ALIAS="user3_key_alias"
+
+# Concatenate the path and filename to create the full path to the keystore file
+USER3_KEYSTORE_PATH="$KEYSTORE_DIR/$USER3_KEYSTORE_FILE"
+
+################################################################################################################################################################
+
+# Specify the keystore file name
+USER4_KEYSTORE_FILE="user4_keyStore.jks"
+
+# Specify the alias and password for the key pair
+USER4_KEYSTORE_PASSWORD="user4_keyStore_passw"
+USER4_KEY_ALIAS="user4_key_alias"
+
+# Concatenate the path and filename to create the full path to the keystore file
+USER4_KEYSTORE_PATH="$KEYSTORE_DIR/$USER4_KEYSTORE_FILE"
+
+################################################################################################################################################################
+
 # Concatenate the path and filename to create the full path to the certificate file
-SERVER_CERTIFICATE_FILE="server_certificate.cer"
+SERVER_CERTIFICATE_FILE="server_certificate.cert"
 SERVER_CERTIFICATE_PATH="$CERTIFICATE_DIR/$SERVER_CERTIFICATE_FILE"
 
-USER1_CERTIFICATE_FILE="user1_certificate.cer"
+USER1_CERTIFICATE_FILE="user1_certificate.cert"
 USER1_CERTIFICATE_PATH="$CERTIFICATE_DIR/$USER1_CERTIFICATE_FILE"
 
-USER2_CERTIFICATE_FILE="user2_certificate.cer"
+USER2_CERTIFICATE_FILE="user2_certificate.cert"
 USER2_CERTIFICATE_PATH="$CERTIFICATE_DIR/$USER2_CERTIFICATE_FILE"
+
+USER3_CERTIFICATE_FILE="user3_certificate.cert"
+USER3_CERTIFICATE_PATH="$CERTIFICATE_DIR/$USER3_CERTIFICATE_FILE"
+
+USER4_CERTIFICATE_FILE="user4_certificate.cert"
+USER4_CERTIFICATE_PATH="$CERTIFICATE_DIR/$USER4_CERTIFICATE_FILE"
 
 ################################################################################################################################################################
 
@@ -72,6 +104,10 @@ keytool -genkeypair -alias $SERVER_KEY_ALIAS -keyalg RSA -storetype JCEKS -keysi
 keytool -genkeypair -alias $USER1_KEY_ALIAS -keyalg RSA -storetype JCEKS -keysize 2048 -keystore $USER1_KEYSTORE_PATH -storepass $USER1_KEYSTORE_PASSWORD -keypass $USER1_KEYSTORE_PASSWORD
 
 keytool -genkeypair -alias $USER2_KEY_ALIAS -keyalg RSA -storetype JCEKS -keysize 2048 -keystore $USER2_KEYSTORE_PATH -storepass $USER2_KEYSTORE_PASSWORD -keypass $USER2_KEYSTORE_PASSWORD
+
+keytool -genkeypair -alias $USER3_KEY_ALIAS -keyalg RSA -storetype JCEKS -keysize 2048 -keystore $USER3_KEYSTORE_PATH -storepass $USER3_KEYSTORE_PASSWORD -keypass $USER3_KEYSTORE_PASSWORD
+
+keytool -genkeypair -alias $USER4_KEY_ALIAS -keyalg RSA -storetype JCEKS -keysize 2048 -keystore $USER4_KEYSTORE_PATH -storepass $USER4_KEYSTORE_PASSWORD -keypass $USER4_KEYSTORE_PASSWORD
 
 # Export certificates
 
@@ -86,6 +122,12 @@ keytool -exportcert -alias $USER1_KEY_ALIAS -storetype JCEKS -keystore $USER1_KE
 echo ">>>passw: user2_keyStore_passw"
 keytool -exportcert -alias $USER2_KEY_ALIAS -storetype JCEKS -keystore $USER2_KEYSTORE_PATH -file $USER2_CERTIFICATE_PATH
 
+echo ">>>passw: user3_keyStore_passw"
+keytool -exportcert -alias $USER3_KEY_ALIAS -storetype JCEKS -keystore $USER3_KEYSTORE_PATH -file $USER3_CERTIFICATE_PATH
+
+echo ">>>passw: user4_keyStore_passw"
+keytool -exportcert -alias $USER4_KEY_ALIAS -storetype JCEKS -keystore $USER4_KEYSTORE_PATH -file $USER4_CERTIFICATE_PATH
+
 ################################################################################################################################################################
 
 ## CREATE TRUSTSTORE
@@ -98,6 +140,8 @@ TRUSTSTORE_PASSWORD="changeit"
 SERVER_CERT_ALIAS="server_cert_alias"
 USER1_CERT_ALIAS="user1_cert_alias"
 USER2_CERT_ALIAS="user2_cert_alias"
+USER3_CERT_ALIAS="user3_cert_alias"
+USER4_CERT_ALIAS="user4_cert_alias"
 
 # Concatenate the path and filename to create the full path to the truststore file
 TRUSTSTORE_PATH="$KEYSTORE_DIR/$TRUSTSTORE_FILE"
@@ -127,28 +171,8 @@ keytool -importcert -alias $USER1_CERT_ALIAS -file $USER1_CERTIFICATE_PATH -stor
 echo ">>>passw: changeit"
 keytool -importcert -alias $USER2_CERT_ALIAS -file $USER2_CERTIFICATE_PATH -storetype JCEKS -keystore $TRUSTSTORE_PATH
 
+echo ">>>passw: changeit"
+keytool -importcert -alias $USER3_CERT_ALIAS -file $USER3_CERTIFICATE_PATH -storetype JCEKS -keystore $TRUSTSTORE_PATH
 
-################################################################################################################################################################
-
-# Specify the alias and password for the trusted certificate
-CERT_ALIAS="certficate_alias"
-CERT_PASSWORD="certificate_passw"
-
-# Specify the path to the trusted certificate file
-CERT_FILE="/path/to/trusted/certificate.crt"
-
-echo "add certificates to the trustStore"
-
-# Import the trusted certificate into the truststore
-#keytool -importcert -alias $CERT_ALIAS -file $CERT_FILE -keystore $TRUSTSTORE_PATH -storepass $CERT_PASSWORD
-
-# Set the file permissions to read-only
-# chmod 400 $TRUSTSTORE_PATH
-
-################################################################################################################################################################
-
-CERTIFICATE_PATH="path/to/certificate.crt"
-
-# EXPORT A CERTIFICATE WITH ALIAS "mycertificate" TO A FILE NAMED "mycertificate.crt" FROM A KEYSTORE "mykeystore.jks" WITH PASSWORD "mypassword"
-
-#keytool -exportcert -alias mycertificate -keystore mykeystore.jks -storepass mypassword -rfc -file $CERTIFICATE_PATH
+echo ">>>passw: changeit"
+keytool -importcert -alias $USER4_CERT_ALIAS -file $USER4_CERTIFICATE_PATH -storetype JCEKS -keystore $TRUSTSTORE_PATH
