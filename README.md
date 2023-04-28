@@ -113,20 +113,20 @@ Firstly, if you haven't already created the keystores, run the setup bash file t
 truststore and certificates. You can edit this file to operate as you wish.
 
 ```bash
-    $ ./setup.sh
+$ ./setup.sh
 ```
 
 If/When you have the keystores and certificates created:
 To compile and run server:
 
 ```bash
-java -jar TintolmarketServer.jar [port] <password-cifra> <keystore> <password-keystore>
+$ java -jar TintolmarketServer.jar [port] <password-cifra> <keystore> <password-keystore>
 ```
 
 To compile and run client:
 
 ```bash
-java -jar Tintolmarket.jar <serverAddress>:[port] <truststore> <keystore> <password-keystore> <userID>
+$ java -jar Tintolmarket.jar <serverAddress>:[port] <truststore> <keystore> <password-keystore> <userID>
 ```
 
 ## 
