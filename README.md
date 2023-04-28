@@ -40,7 +40,7 @@ Here are some of the operation limitations:
 
 - On a first running of the server, everything works smoothly. However, when the server is restarted, only one user can connect to the server before the server crashes due to a BadPaddingException.
 - Read functionality does not work. It raises an InvalidKeyException: Unwrapping failed uppon executing the read function.
-- The blockchain is not verified correctly by the server after restart. The signature os each block is invalid and therefore, we decided to comment the code snippet that evaluates the server signature on each block.
+- The blockchain is not verified correctly by the server after restart. The signature of each block is invalid and therefore, we decided to comment the code snippet that evaluates the server signature on each block.
 
 
 ## Other explanations
