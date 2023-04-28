@@ -7,7 +7,6 @@ public class Transacao {
     private int value;
     private final int userId;
     private final TransacaoType type;
-    private SignedObject assinatura;
 
     public Transacao(String vinhoName, int quantity, int value, int userId, TransacaoType type) {
         this.vinhoName = vinhoName;
@@ -15,6 +14,22 @@ public class Transacao {
         this.value = value;
         this.userId = userId;
         this.type = type;
+    }
+
+    public static Transacao fromString(String str) {
+        String[] split = str.split(",");
+
+        TransacaoType type = TransacaoType.valueOf(split[0]);
+        String name = split[1];
+        int quantity = Integer.parseInt(split[2]);
+        int value = Integer.parseInt(split[3]);
+        int userID = Integer.parseInt(split[4]);
+
+        return new Transacao(name, quantity, value, userID, type);
+    }
+
+    public String toStringBlkFile() {
+        return type + "," + vinhoName + "," + quantity + "," + value + "," + userId;
     }
 
     @Override

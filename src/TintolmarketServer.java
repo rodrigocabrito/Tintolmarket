@@ -37,18 +37,18 @@ public class TintolmarketServer {
     static BufferedWriter bwSale = null;
 
     // file paths
-    private static final String AUTHENTICATION_FILE_CIF = "./data_bases/users.cif";
-    private static final String AUTHENTICATION_FILE_KEY = "./data_bases/users.key";
-    private static final String BALANCE_FILE_TXT = "./data_bases/balance.txt";
-    private static final String WINES_FILE_TXT = "./data_bases/wines.txt";
-    private static final String FORSALE_FILE_TXT = "./data_bases/forSale.txt";
+    private static final String AUTHENTICATION_FILE_CIF = "./src/data_bases/users.cif";
+    private static final String AUTHENTICATION_FILE_KEY = "./src/data_bases/users.key";
+    private static final String BALANCE_FILE_TXT = "./src/balance.txt";
+    private static final String WINES_FILE_TXT = "./src/data_bases/wines.txt";
+    private static final String FORSALE_FILE_TXT = "./src/data_bases/forSale.txt";
 
     // directories
-    private static final String SERVER_FILES_DIR = "./server_files/";
-    private static final String KEYSTORE_DIR = "./keystores/";
-    private static final String CERTIFICATES_DIR = "./certificates/";
-    private static final String CHAT_DIR = "./chat/";
-    private static final String CHAT_KEYS_DIR = "./chat_keys/";
+    private static final String SERVER_FILES_DIR = "./src/server_files/";
+    private static final String KEYSTORE_DIR = "./src/keystores/";
+    private static final String CERTIFICATES_DIR = "./src/certificates/";
+    private static final String CHAT_DIR = "./src/chat/";
+    private static final String CHAT_KEYS_DIR = "./src/chat_keys/";
 
     // server information
     private static PublicKey serverPublicKey = null;
@@ -62,7 +62,7 @@ public class TintolmarketServer {
     private static final HashMap<Utilizador, ArrayList<Sale>> forSale = new HashMap<>();
 
     public static void main(String[] args) throws Exception {
-
+/*
         int port;
         String cipherPassword;
         String keyStoreFileName;
@@ -79,12 +79,12 @@ public class TintolmarketServer {
             keyStoreFileName = args[1];
             keyStorePassword = args[2];
         }
- /*
+*/
         int port = 12345;
         String cipherPassword = "olaadeus";
         String keyStoreFileName = "server_keyStore.jks";
         String keyStorePassword = "server_keyStore_passw";
-*/
+
         String serverKeyAlias = "server_key_alias"; // from keyStore
 
         String keyStorePath = KEYSTORE_DIR + keyStoreFileName;
@@ -155,7 +155,7 @@ public class TintolmarketServer {
 
         updateServerMemory();
 
-        verifyIntegrityBlockchain(); //TODO check this (checked)
+        verifyIntegrityBlockchain(serverPrivateKey); //TODO check this (checked)
 
         System.setProperty("javax.net.ssl.keyStore", keyStorePath);
         System.setProperty("javax.net.ssl.keyStorePassword", keyStorePassword);
@@ -183,10 +183,11 @@ public class TintolmarketServer {
         //serverSocket.close();
     }
 
-    private static void verifyIntegrityBlockchain() throws Exception {
-        blockchain.loadBlocks();
+    private static void verifyIntegrityBlockchain(PrivateKey serverPrivateKey) throws Exception {
+        blockchain.loadBlocks(serverPrivateKey);
 
-        if (blockchain.getLastBlock().getNrTransacoes() == 0) {
+        long i = 0;
+        if (blockchain.getLastBlock().getNrTransacoes() != i) {
             if (blockchain.isChainValid()) {
                 System.out.println(" Blockchain valida! \n");
             } else {
@@ -204,18 +205,17 @@ public class TintolmarketServer {
                     sb.append(data);
 
                     for (Transacao transacao : block.getTransacoes()) {
-                        sb.append(transacao.toString());
+                        sb.append(transacao.toStringBlkFile());
                     }
 
                     byte[] dataBytes = sb.toString().getBytes();
                     serverSignature.update(dataBytes);
-                    byte[] signature = serverSignature.sign();
-                    boolean validSignature = serverSignature.verify(signature);
+                    boolean validSignature = serverSignature.verify(dataBytes);
 
                     if (validSignature) {
-                        System.out.println("Assinatura do bloco com id " + block.getId() + " eh valido \n");
+                        System.out.println("Assinatura do bloco com id " + block.getId() + " eh valida \n");
                     } else {
-                        System.out.println("Assinatura do bloco com id " + block.getId() + " eh invalido \n");
+                        System.out.println("Assinatura do bloco com id " + block.getId() + " eh invalida \n");
                         System.exit(-1);
                     }
                 }

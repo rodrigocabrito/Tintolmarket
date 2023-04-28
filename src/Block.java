@@ -1,8 +1,6 @@
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.Signature;
+import java.security.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -28,10 +26,18 @@ public class Block {
         }
     }
 
+    public Block(String hash, long id, long nrTransacoes, List<Transacao> transacoes, Signature assinatura) {
+        this.hash = hash;
+        this.id = id;
+        this.nrTransacoes = nrTransacoes;
+        this.transacoes = transacoes;
+        this.assinatura = assinatura;
+    }
+
     public String calculateHash() {
         StringBuilder sb = new StringBuilder();
         for (Transacao transacao : transacoes) {
-            sb.append(transacao.toString());
+            sb.append(transacao.toStringBlkFile());
         }
 
         String dataToHash = sb + assinatura.toString();
@@ -61,9 +67,10 @@ public class Block {
         this.assinatura = assinatura;
     }
 
-    public byte[] toByteArray() {
+    public byte[] toByteArray() throws IOException {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
+        ObjectOutputStream oos = new ObjectOutputStream(bos);
 
         try {
             // Serialize the block data to the byte array
@@ -71,10 +78,10 @@ public class Block {
             dos.writeLong(id);
             dos.writeLong(nrTransacoes);
             for (Transacao transacao : transacoes) {
-                dos.writeUTF(transacao.toString());
+                dos.writeUTF(transacao.toStringBlkFile());
             }
             if (assinatura != null) {
-                dos.writeUTF(assinatura.toString());
+                oos.writeObject(assinatura);
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -82,17 +89,58 @@ public class Block {
         return bos.toByteArray();
     }
 
-    public static Block fromByteArray(byte[] data) throws IOException {
-        ByteArrayInputStream in = new ByteArrayInputStream(data);
-        ObjectInputStream ois = new ObjectInputStream(in);
-        Block block = null;
-        try {
-            block = (Block) ois.readObject();
-        } catch (ClassNotFoundException e) {
-            // Handle the exception
+    public static Block fromByteArray(byte[] data, PrivateKey serverPrivateKey) throws IOException, InvalidKeyException, NoSuchAlgorithmException {
+
+        // Create an input stream to read the block data
+        ByteArrayInputStream bis = new ByteArrayInputStream(data);
+        DataInputStream dis = new DataInputStream(bis);
+        ObjectInputStream ois = new ObjectInputStream(bis);
+
+        // Read the block data from the input stream and create a Block object
+        String hash = dis.readUTF();
+        long id = dis.readLong();
+        long nrTransacoes = dis.readLong();
+        List<Transacao> transacoes = new ArrayList<>();
+        for (int i = 0; i < nrTransacoes; i++) {
+            String transacaoString = dis.readUTF();
+            transacoes.add(Transacao.fromString(transacaoString));
         }
-        ois.close();
-        return block;
+
+        //Signature serverSignature = Signature.getInstance("SHA256withRSA");
+        //serverSignature.initSign(serverPrivateKey);
+        Signature serverSignature = null;
+        if (nrTransacoes == 5) {
+            Signature assinatura = null;
+
+            serverSignature = Signature.getInstance("SHA256withRSA");
+            serverSignature.initSign(serverPrivateKey);
+            try {
+                assinatura = (Signature) ois.readObject();
+            } catch (IOException | ClassNotFoundException e) {
+                // The signature is not present in the block data
+            }
+        }
+
+        /*
+        ByteArrayInputStream bis = new ByteArrayInputStream(data);
+        DataInputStream dis = new DataInputStream(bis);
+
+        String hash = dis.readUTF();
+        long id = dis.readLong();
+        long nrTransacoes = dis.readLong();
+        List<Transacao> transacoes = new ArrayList<>();
+        int i = 0;
+        while (i < nrTransacoes) {
+            String transacaoString = dis.readUTF();
+            Transacao transacao = Transacao.fromString(transacaoString);
+            transacoes.add(transacao);
+            i++;
+        }
+
+        Signature serverSignature = Signature.getInstance("SHA256withRSA");
+        serverSignature.initSign(serverPrivateKey);
+        */
+        return new Block(hash, id, nrTransacoes, transacoes, serverSignature);
     }
 
     public boolean isBlockFull() {
