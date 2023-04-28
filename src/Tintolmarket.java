@@ -1,18 +1,13 @@
-
-import java.io.*;
-import java.net.Socket;
-import java.security.*;
-import java.security.Certificate;
-import java.security.cert.*;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Date;
-import java.util.Scanner;
-
 import javax.crypto.Cipher;
-import javax.net.SocketFactory;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
 import javax.net.ssl.*;
-import javax.security.cert.X509Certificate;
+import java.io.*;
+import java.security.*;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.util.Arrays;
+import java.util.Scanner;
 
 /*
  * @authors:
@@ -23,13 +18,12 @@ import javax.security.cert.X509Certificate;
 
 public class Tintolmarket {
 
-    private static final String CLIENT_DIR = "./clientFiles/";
-    private static final String CERTIFICATES_DIR = "./certificates/"; //TODO remove
-    private static final String KEYSTORE_DIR = "./keystores/";
+    private static final String CLIENT_DIR = "./client_files/"; //debug
+    private static final String KEYSTORE_DIR = "./keystores/"; //debug
+    private static final String CERTIFICATE_DIR = "./certificates/"; //debug
 
     private static PublicKey publicKey = null;
     private static PrivateKey privateKey = null;
-    private static Signature signature = null;
     private static KeyStore trustStore = null;
     private static java.security.cert.Certificate cert = null;
 
@@ -41,9 +35,15 @@ public class Tintolmarket {
             String keyStoreFileName = args[2];
             String keyStorePassword = args[3];
             int userID = Integer.parseInt(args[4]);
-
+             //debug
+/*
+            String trustStoreFileName = "tintolmarket_trustStore.jks";
+            String keyStoreFileName = "user2_keyStore.jks";
+            String keyStorePassword = "user2_keyStore_passw";
+            int userID = 2;
+*/
             String keyAlias = "user" + userID + "_key_alias";
-            String defaultPasswordTrustStore = "changeit"; //TODO idk
+            String defaultPasswordTrustStore = "changeit";
 
             String keyStorePath = KEYSTORE_DIR + keyStoreFileName;
             String trustStorePath = KEYSTORE_DIR + trustStoreFileName;
@@ -81,12 +81,16 @@ public class Tintolmarket {
             SSLSocketFactory sslSocketFactory = sslContext.getSocketFactory();
             SSLSocket socket = null;
 
+            /*
             String[] ipPort = args[0].split(":");
             if (ipPort.length == 1) {
                 socket = (SSLSocket) sslSocketFactory.createSocket(args[0], 12345);
             } else {
                 socket = (SSLSocket) sslSocketFactory.createSocket(ipPort[0], Integer.parseInt(ipPort[1]));
-            }
+            }*/ //debug
+
+            String host = "localhost";
+            socket = (SSLSocket) sslSocketFactory.createSocket(host, 12345);
 
             socket.startHandshake();
 
@@ -98,27 +102,17 @@ public class Tintolmarket {
 
             //authentication
             outStream.writeObject(userID);
-            System.out.println("id enviado");
 
             boolean newUser = false;
             long nonce = 0;
 
             String answer = (String) inStream.readObject();
-            System.out.println(answer);
             String[] split = answer.split(":"); //split flag
             nonce = Long.parseLong(split[0]);
 
             if (split.length == 2) {
-                System.out.println("new user");
                 newUser = true;
-            } else {
-                System.out.println("known user"); //TODO remove after tests
             }
-            //System.out.println(inStream.readObject());
-
-            // create signature from private key
-            signature = Signature.getInstance("SHA256withRSA");
-            signature.initSign(privateKey);
 
             if (newUser) {
 
@@ -128,8 +122,10 @@ public class Tintolmarket {
                 //send nonce
                 outStream.writeObject(nonce);
 
-                // Generate the signature for the data to sign
+                // Generate the signature to sign the data
                 byte[] data = "Hello, server!".getBytes();
+                Signature signature = Signature.getInstance("SHA256withRSA");
+                signature.initSign(privateKey);
                 signature.update(data);
                 byte[] signatureBytes = signature.sign();
                 outStream.writeObject(signatureBytes);
@@ -139,6 +135,8 @@ public class Tintolmarket {
 
             } else {
                 // signing of nonce
+                Signature signature = Signature.getInstance("SHA256withRSA");
+                signature.initSign(privateKey);
                 signature.update(String.valueOf(nonce).getBytes());
                 byte[] signedNonce = signature.sign();
 
@@ -147,7 +145,15 @@ public class Tintolmarket {
             }
 
             //answer authenticated/not authenticated
-            System.out.println(inStream.readObject());
+            String authAnswer = (String) inStream.readObject();
+            System.out.println(authAnswer);
+
+            // exit if authentication failed
+            if (authAnswer .equals("Erro na autenticacao...")) {
+                sc.close();
+                socket.close();
+                System.exit(-1);
+            }
 
             while(true) {
 
@@ -248,43 +254,59 @@ public class Tintolmarket {
                 } else if (splitCommand[0].equals("talk") || splitCommand[0].equals("t")) {
                     outStream.writeObject(command); //send command
 
-                    // get the public key from the client to send msg (trustStore)
-                    String certAlias = splitCommand[1] + "_key_alias";
-                    java.security.cert.Certificate trustedCert = trustStore.getCertificate(certAlias);
-                    PublicKey receiverPublicKey = trustedCert.getPublicKey();
+                    if (inStream.readObject().equals("All good!")) {
 
-                    Cipher cipher = Cipher.getInstance("RSA");
-                    cipher.init(Cipher.ENCRYPT_MODE, receiverPublicKey);
+                        // get the public key from the client to send msg (trustStore)
+                        FileInputStream fis = new FileInputStream(CERTIFICATE_DIR + "user" + userID + "_certificate.cer");
+                        CertificateFactory cf = CertificateFactory.getInstance("X509");
+                        X509Certificate cert = (X509Certificate) cf.generateCertificate(fis);
+                        PublicKey receiverPublicKey = cert.getPublicKey();
 
-                    System.out.println(inStream.readObject()); // "> "
-                    String txt = sc.nextLine();
+                        System.out.print("> ");
+                        String txt = sc.nextLine();
 
-                    String message = "Mensagem de user" + userID + ": " + txt + "\n";
-                    byte[] encryptedMsg = cipher.doFinal(message.getBytes());
-                    outStream.writeObject(encryptedMsg);    //send encrypted msg
+                        String message = "Mensagem de user" + userID + ": " + txt + "\n";
+
+                        KeyGenerator kg = KeyGenerator.getInstance("DESede");
+                        Key sharedKey = kg.generateKey();
+
+                        Cipher cipher = Cipher.getInstance("DESede");
+                        cipher.init(Cipher.ENCRYPT_MODE, sharedKey);
+
+                        byte[] encryptedMessage = cipher.doFinal(message.getBytes());
+
+                        outStream.writeObject(encryptedMessage);    //send encrypted msg
+                        outStream.writeObject(receiverPublicKey);   // send public key
+                        outStream.writeObject(sharedKey);           // send shared key
+                    }
+
 
                 } else if (splitCommand[0].equals("sell") || splitCommand[0].equals("s") ||
                                     splitCommand[0].equals("buy") || splitCommand[0].equals("b")){
-
                     outStream.writeObject(command); //send command
 
-                    if (inStream.readObject().equals("All good!")){
-                        byte[] transactionBytes = (byte[]) inStream.readObject();
-                        signature.update(transactionBytes);
-                        byte[] signedSellBytes = signature.sign();
-                        boolean verifiedSignature = signature.verify(signedSellBytes);
+                    Signature signature = Signature.getInstance("SHA256withRSA");
+                    signature.initSign(privateKey);
 
-                        outStream.writeObject(verifiedSignature);
+                    String answer2 = (String) inStream.readObject();
 
-                        // transacao processada com sucesso/assinatura invalida
-                        System.out.println(inStream.readObject());
-                    }
+                   if (answer2.equals("Nova transacao!")){
+                       byte[] transactionBytes = (byte[]) inStream.readObject();
+                       signature.update(transactionBytes);
+                       byte[] signedSellBytes = signature.sign();
+                       //boolean verifiedSignature = signature.verify(signedSellBytes);
+
+                       outStream.writeObject(signedSellBytes);
+                   }
+
                 } else if (splitCommand[0].equals("read") || splitCommand[0].equals("r")){
 
                     outStream.writeObject(command); //send command
 
                     if (inStream.readObject().equals("All good!")) {
-                        outStream.writeObject(privateKey);
+
+                        outStream.writeObject(keyStorePassword);    //send keystore password
+                        outStream.writeObject(keyAlias);            //send key alias
                     }
                 } else {
                     outStream.writeObject(command); //send command

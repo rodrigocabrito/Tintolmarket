@@ -23,7 +23,7 @@ Once logged in, a menu will appear and you can choose witch operation to do. Her
 ## Limitations
 
 Here are some of the operation limitations:
-- add `wine` `image` : `wine` must be a String and `image` must be a String path to the file containing the image. It's imperative that the image      exists in the clientFiles directory, otherwise client is shutdown.
+- add `wine` `image` : `wine` must be a String and `image` must be a String path to the file containing the image. It's imperative that the image      exists in the client_files directory, otherwise client is shutdown.
 - sell `wine` `value` `quantity` : `wine` must be a String, while `value` and `quantity` both must be positive Integers. It's only possible to sell existing wines.
 - view `wine` : `wine` must be a String and `wine` must exist.
 - buy `wine` `seller` `quantity` : `wine` must be a String and `wine` must exist. `seller` must be a String and `seller` must be an existing user. Also `seller` cant be the user itself. `quantity` must be a positive Integer.
@@ -46,11 +46,11 @@ Contains the .txt files that store all data from the app.
 
 These files are updated through the app execution, by structures in the server memory.
 
-### clientFiles
+### client_files
 
 Contains image files of the wines to be added. When view operation is called, the file that contains the image of the wine passed as arg in the view operation is overwritten.
 
-### serverFiles
+### server_files
 
 Contains image files of the wines added.
 

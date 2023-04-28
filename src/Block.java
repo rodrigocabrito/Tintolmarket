@@ -3,6 +3,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.Signature;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -11,13 +12,14 @@ public class Block {
     private String hash;
     private final long id;
     private long nrTransacoes;
-    private List<Transacao> transacoes;
+    private final List<Transacao> transacoes;
     private Signature assinatura;
 
 
     public Block(long id) {
         this.id = id;
         this.nrTransacoes = 0;
+        this.transacoes = new ArrayList<>();
 
         if (id == 1) {
             this.hash = Arrays.toString(new byte[32]);
@@ -32,7 +34,7 @@ public class Block {
             sb.append(transacao.toString());
         }
 
-        String dataToHash = sb.toString() + assinatura.toString();
+        String dataToHash = sb + assinatura.toString();
         String hash = null;
 
         //TODO verificar metodo de fazer calculateHash
@@ -65,13 +67,15 @@ public class Block {
 
         try {
             // Serialize the block data to the byte array
+            dos.writeUTF(hash);
             dos.writeLong(id);
             dos.writeLong(nrTransacoes);
             for (Transacao transacao : transacoes) {
                 dos.writeUTF(transacao.toString());
             }
-            dos.writeUTF(assinatura.toString());
-            dos.writeUTF(hash);
+            if (assinatura != null) {
+                dos.writeUTF(assinatura.toString());
+            }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -111,23 +115,7 @@ public class Block {
         return nrTransacoes;
     }
 
-    public void setNrTransacoes(long nrTransacoes) {
-        this.nrTransacoes = nrTransacoes;
-    }
-
     public List<Transacao> getTransacoes() {
         return transacoes;
-    }
-
-    public void setTransacoes(List<Transacao> transacoes) {
-        this.transacoes = transacoes;
-    }
-
-    public Signature getAssinatura() {
-        return assinatura;
-    }
-
-    public void setAssinatura(Signature assinatura) {
-        this.assinatura = assinatura;
     }
 }

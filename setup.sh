@@ -3,9 +3,10 @@
 # in case you are having issues with running this script, run the command below first
 # $ chmod +x setup.sh
 
-# Delete all existing keystores
+# Delete all existing keystores and certificates
 
 rm -rf src/keystores/*
+rm -rf src/certificates/*
 
 ## CREATE KEYSTORES
 
@@ -36,8 +37,20 @@ USER1_KEYSTORE_FILE="user1_keyStore.jks"
 USER1_KEYSTORE_PASSWORD="user1_keyStore_passw"
 USER1_KEY_ALIAS="user1_key_alias"
 
-# Concatenate the path and filename to create the full path to the truststore file
+# Concatenate the path and filename to create the full path to the keystore file
 USER1_KEYSTORE_PATH="$KEYSTORE_DIR/$USER1_KEYSTORE_FILE"
+
+# Specify the keystore file name
+USER2_KEYSTORE_FILE="user2_keyStore.jks"
+
+# Specify the alias and password for the key pair
+USER2_KEYSTORE_PASSWORD="user2_keyStore_passw"
+USER2_KEY_ALIAS="user2_key_alias"
+
+# Concatenate the path and filename to create the full path to the keystore file
+USER2_KEYSTORE_PATH="$KEYSTORE_DIR/$USER2_KEYSTORE_FILE"
+
+################################################################################################################################################################
 
 # Concatenate the path and filename to create the full path to the certificate file
 SERVER_CERTIFICATE_FILE="server_certificate.cer"
@@ -45,6 +58,9 @@ SERVER_CERTIFICATE_PATH="$CERTIFICATE_DIR/$SERVER_CERTIFICATE_FILE"
 
 USER1_CERTIFICATE_FILE="user1_certificate.cer"
 USER1_CERTIFICATE_PATH="$CERTIFICATE_DIR/$USER1_CERTIFICATE_FILE"
+
+USER2_CERTIFICATE_FILE="user2_certificate.cer"
+USER2_CERTIFICATE_PATH="$CERTIFICATE_DIR/$USER2_CERTIFICATE_FILE"
 
 ################################################################################################################################################################
 
@@ -55,6 +71,8 @@ keytool -genkeypair -alias $SERVER_KEY_ALIAS -keyalg RSA -storetype JCEKS -keysi
 
 keytool -genkeypair -alias $USER1_KEY_ALIAS -keyalg RSA -storetype JCEKS -keysize 2048 -keystore $USER1_KEYSTORE_PATH -storepass $USER1_KEYSTORE_PASSWORD -keypass $USER1_KEYSTORE_PASSWORD
 
+keytool -genkeypair -alias $USER2_KEY_ALIAS -keyalg RSA -storetype JCEKS -keysize 2048 -keystore $USER2_KEYSTORE_PATH -storepass $USER2_KEYSTORE_PASSWORD -keypass $USER2_KEYSTORE_PASSWORD
+
 # Export certificates
 
 echo "Exporting certificates"
@@ -64,6 +82,9 @@ keytool -exportcert -alias $SERVER_KEY_ALIAS -storetype JCEKS -keystore $SERVER_
 
 echo ">>>passw: user1_keyStore_passw"
 keytool -exportcert -alias $USER1_KEY_ALIAS -storetype JCEKS -keystore $USER1_KEYSTORE_PATH -file $USER1_CERTIFICATE_PATH
+
+echo ">>>passw: user2_keyStore_passw"
+keytool -exportcert -alias $USER2_KEY_ALIAS -storetype JCEKS -keystore $USER2_KEYSTORE_PATH -file $USER2_CERTIFICATE_PATH
 
 ################################################################################################################################################################
 
@@ -76,6 +97,7 @@ TRUSTSTORE_PASSWORD="changeit"
 # Specify the alias for the server certificate
 SERVER_CERT_ALIAS="server_cert_alias"
 USER1_CERT_ALIAS="user1_cert_alias"
+USER2_CERT_ALIAS="user2_cert_alias"
 
 # Concatenate the path and filename to create the full path to the truststore file
 TRUSTSTORE_PATH="$KEYSTORE_DIR/$TRUSTSTORE_FILE"
@@ -101,6 +123,9 @@ keytool -importcert -alias $SERVER_CERT_ALIAS -file $SERVER_CERTIFICATE_PATH -st
 
 echo ">>>passw: changeit"
 keytool -importcert -alias $USER1_CERT_ALIAS -file $USER1_CERTIFICATE_PATH -storetype JCEKS -keystore $TRUSTSTORE_PATH
+
+echo ">>>passw: changeit"
+keytool -importcert -alias $USER2_CERT_ALIAS -file $USER2_CERTIFICATE_PATH -storetype JCEKS -keystore $TRUSTSTORE_PATH
 
 
 ################################################################################################################################################################

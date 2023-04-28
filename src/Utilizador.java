@@ -9,8 +9,8 @@
 
 public class Utilizador {
     
-    private int id = 0;
-    private int balance = 0;
+    private final int id;
+    private int balance;
     
     public Utilizador(int id, int balance) {
         this.id = id;
